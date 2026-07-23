@@ -486,11 +486,13 @@ function core(s){
 }
 function findSeed(addr){
   const ca = core(addr);
+  if(ca.length < 4) return null;
+  let best=null, bestLen=0;
   for(const key in SEED_COORDS){
     const ck = core(key);
-    if(ck.length>=3 && (ca.includes(ck) || ck.includes(ca))) return SEED_COORDS[key];
+    if(ck.length>=6 && ca.includes(ck) && ck.length>bestLen){ best=SEED_COORDS[key]; bestLen=ck.length; }
   }
-  return null;
+  return best;
 }
 
 const CACHE_KEY = 'ceragem_geo_cache_v1';
