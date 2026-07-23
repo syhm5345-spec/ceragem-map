@@ -33,7 +33,7 @@
   .view.active{display:flex;}
 
   #dashboardView{flex-direction:column;overflow-y:auto;padding:20px 26px 40px;gap:18px;}
-  .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+  .kpirow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;}
   .kpi .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--amber);}
   .kpi .l{font-size:11px;color:var(--muted);margin-top:4px;}
@@ -154,6 +154,11 @@
       <div class="panel">
         <h2><span class="eyebrow">Alerts</span> 갱신 임박 · 리스크 알림</h2>
         <div id="alertsList"></div>
+      </div>
+      <div class="panel">
+        <h2><span class="eyebrow">Closed</span> 폐점 매장 (자동 인식)</h2>
+        <div class="note">매장명·비고에 "폐" 또는 "해지" 문구가 있는 경우만 자동으로 분류돼요. 취소선만 되어 있고 문구가 없는 매장은 여기 안 잡히니, 폐점 매장은 시트에서 매장명 앞에 "폐)" 같은 표시를 남겨주세요.</div>
+        <div id="closedList" style="display:flex;flex-direction:column;"></div>
       </div>
       <div class="panel">
         <h2><span class="eyebrow">Contracts</span> 전체 계약 현황</h2>
@@ -639,10 +644,20 @@ const fmtWon = n => {
   if(n>=10000) return Math.round(n/10000).toLocaleString('ko-KR')+"만";
   return n.toLocaleString('ko-KR');
 };
+function parseDateStr(s){
+  if(!s) return null;
+  const parts = String(s).trim().split('-');
+  if(parts.length!==3) return null;
+  let y = parseInt(parts[0],10), m = parseInt(parts[1],10), d = parseInt(parts[2],10);
+  if(isNaN(y)||isNaN(m)||isNaN(d)) return null;
+  if(y < 100) y += 2000;
+  const dt = new Date(y, m-1, d);
+  return isNaN(dt) ? null : dt;
+}
 function ddayOf(s){
   if(s.closed || !s.end) return null;
-  const end = new Date(s.end);
-  if(isNaN(end)) return null;
+  const end = parseDateStr(s.end);
+  if(!end) return null;
   return Math.round((end - TODAY) / 86400000);
 }
 function riskOf(s){
@@ -663,8 +678,26 @@ let sortKey = 'end', sortDir = 1;
 let map, markers=[], circles=[];
 
 function renderAll(){
-  renderKpis(); renderAlerts(); setupBrandChips(); renderTable();
+  renderKpis(); renderAlerts(); renderClosed(); setupBrandChips(); renderTable();
   setupMap(); renderList2();
+}
+
+function renderClosed(){
+  const el = document.getElementById('closedList'); el.innerHTML='';
+  const closedStores = STORES2.filter(s=>s.closed);
+  if(closedStores.length===0){
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:6px 0;">자동 인식된 폐점 매장 없음</div>';
+    return;
+  }
+  closedStores.forEach(s=>{
+    const row = document.createElement('div'); row.className='alertRow';
+    row.innerHTML = `<div class="light" style="background:${CLOSED_COLOR}"></div>
+      <div class="an" style="text-decoration:line-through;color:var(--muted)">${s.name}</div>
+      <div class="aaddr">${s.addr||''}</div>
+      <span class="brandtag" style="background:${BRAND_COLOR[s.brand]}">${BRAND_LABEL[s.brand]}</span>`;
+    row.addEventListener('click', ()=>openDrawer(s._idx));
+    el.appendChild(row);
+  });
 }
 
 function renderKpis(){
@@ -673,15 +706,11 @@ function renderKpis(){
   const active = STORES2.filter(s=>!s.closed).length;
   const closedCnt = STORES2.filter(s=>s.closed).length;
   const soon = STORES2.filter(s=>!s.closed && ddayOf(s)!=null && ddayOf(s)<=60).length;
-  const depositSum = STORES2.reduce((a,s)=>a+(s.deposit||0),0);
-  const rentSum = STORES2.reduce((a,s)=>a+(s.rent||0),0);
   [
    {n: total, l:'전체 매장', warn:false},
-   {n: active, l:'영업중', warn:false},
-   {n: closedCnt, l:'폐점', warn:false},
+   {n: active, l:'영업중 (자동인식)', warn:false},
+   {n: closedCnt, l:'폐점 (자동인식)', warn:false},
    {n: soon, l:'60일내 갱신임박', warn:true},
-   {n: fmtWon(depositSum)+'원', l:'보증금 합계', warn:false},
-   {n: fmtWon(rentSum)+'원', l:'월임차료 합계', warn:false},
   ].forEach(k=>{
     const d = document.createElement('div');
     d.className = 'kpi' + (k.warn && k.n>0 ? ' warn':'');
@@ -886,4 +915,3 @@ loadAll();
 </script>
 </body>
 </html>
-
