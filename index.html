@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>브랜드 매장 현황판</title>
+<title>AI 계약 통합관리·리스크 알림 대시보드 (자동연동)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -11,377 +11,836 @@
     --bg:#12161a; --panel:#181e24; --panel-2:#1f272f; --line:#2a333c;
     --ink:#e9e6dd; --muted:#8b93a0; --amber:#d9a441; --amber-dim:#8a6a2e;
     --wellounge:#5b8fa8; --wellcafe:#c97b4a; --celunic:#7a9e73; --naviel:#b06a7a; --club:#8d78b0;
-    --closed:#5a6068;
+    --closed:#5a6068; --red:#d9695f; --yellow:#d9b354; --green:#6fae7f;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans KR',sans-serif;overflow:hidden;}
-  #app{display:grid;grid-template-columns:380px 1fr;height:100vh;}
-  #sidebar{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;}
-  #head{padding:20px 20px 14px;border-bottom:1px solid var(--line);}
-  #head .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;}
-  #head h1{font-size:19px;margin:6px 0 2px;font-weight:600;letter-spacing:-.01em;}
-  #head .sub{font-size:12px;color:var(--muted);}
-  #stats{display:flex;border-bottom:1px solid var(--line);}
-  .stat{flex:1;padding:12px 12px;border-right:1px solid var(--line);}
-  .stat:last-child{border-right:none;}
-  .stat .n{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:var(--amber);}
-  .stat .l{font-size:10px;color:var(--muted);margin-top:2px;}
-  #controls{padding:12px 20px;border-bottom:1px solid var(--line);}
-  #search{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:5px;font-size:13px;font-family:inherit;}
-  #search:focus{outline:none;border-color:var(--amber-dim);}
-  #brandFilters{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
-  .chip{font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);cursor:pointer;user-select:none;font-family:'IBM Plex Mono',monospace;transition:all .12s;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  #topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel);flex-shrink:0;}
+  #topbar .brand{display:flex;align-items:center;gap:10px;}
+  #topbar .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;}
+  #topbar h1{font-size:17px;margin:0;font-weight:600;letter-spacing:-.01em;}
+  #tabs{display:flex;gap:4px;align-items:center;}
+  .tab{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:7px 16px;border-radius:6px;color:var(--muted);cursor:pointer;border:1px solid transparent;}
+  .tab.active{background:var(--panel-2);color:var(--amber);border-color:var(--line);}
+  #refreshBtn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:7px 14px;border-radius:6px;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);cursor:pointer;}
+  #refreshBtn:hover{border-color:var(--amber-dim);}
+  #syncStatus{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);}
+
+  #body{flex:1;min-height:0;position:relative;}
+  .view{position:absolute;inset:0;display:none;}
+  .view.active{display:flex;}
+
+  #dashboardView{flex-direction:column;overflow-y:auto;padding:20px 26px 40px;gap:18px;}
+  .kpirow{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;}
+  .kpi .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--amber);}
+  .kpi .l{font-size:11px;color:var(--muted);margin-top:4px;}
+  .kpi.warn .n{color:var(--red);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px;}
+  .panel h2{font-size:13px;margin:0 0 12px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;}
+  .panel h2 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;}
+  .panel .note{font-size:11px;color:var(--muted);margin:-6px 0 12px;}
+
+  #alertsList{display:flex;flex-direction:column;gap:0;}
+  .alertRow{display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid #1c232a;cursor:pointer;}
+  .alertRow:last-child{border-bottom:none;}
+  .alertRow:hover{background:var(--panel-2);}
+  .light{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .alertRow .an{font-size:13px;font-weight:500;flex:1;}
+  .alertRow .aaddr{font-size:11px;color:var(--muted);flex:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .alertRow .adday{font-family:'IBM Plex Mono',monospace;font-size:12px;min-width:78px;text-align:right;}
+
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .toolbar input[type=text]{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:7px 10px;border-radius:5px;font-size:12.5px;font-family:inherit;min-width:180px;}
+  .chip{font-size:11px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);cursor:pointer;user-select:none;font-family:'IBM Plex Mono',monospace;}
   .chip.active{color:#12161a;border-color:transparent;}
+
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;text-transform:uppercase;letter-spacing:.04em;}
+  tbody td{padding:7px 8px;border-bottom:1px solid #1c232a;}
+  tbody tr{cursor:pointer;}
+  tbody tr:hover{background:var(--panel-2);}
+  td.num{font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .brandtag{font-size:10px;padding:1px 6px;border-radius:3px;color:#12161a;font-weight:600;}
+  .closedtag{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--closed);color:#fff;margin-left:6px;}
+
+  #mapView{display:none;}
+  #mapView.active{display:grid;grid-template-columns:380px 1fr;width:100%;}
+  #sidebar{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0;}
+  #mcontrols{padding:14px 18px;border-bottom:1px solid var(--line);}
+  #search2{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:5px;font-size:13px;font-family:inherit;}
+  #brandFilters{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
   .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;font-size:12px;color:var(--muted);}
   .toggle-row input{accent-color:var(--amber);}
   .radius-row{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--muted);}
   .radius-row input[type=range]{flex:1;accent-color:var(--amber);}
   .radius-row .val{font-family:'IBM Plex Mono',monospace;color:var(--ink);min-width:44px;text-align:right;}
-  #list{flex:1;overflow-y:auto;padding:6px 0;}
-  .row{padding:10px 20px;border-bottom:1px solid #1c232a;cursor:pointer;display:flex;gap:9px;align-items:flex-start;}
+  #list2{flex:1;overflow-y:auto;padding:6px 0;}
+  .row{padding:10px 18px;border-bottom:1px solid #1c232a;cursor:pointer;display:flex;gap:9px;align-items:flex-start;}
   .row:hover{background:var(--panel-2);}
-  .row.selected{background:#232b33;border-left:2px solid var(--amber);padding-left:18px;}
   .row .dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex-shrink:0;}
   .row .rmain{min-width:0;flex:1;}
-  .row .name{font-size:13px;font-weight:500;color:var(--ink);}
+  .row .name{font-size:13px;font-weight:500;}
   .row .name.closedname{color:var(--muted);text-decoration:line-through;}
-  .row .addr{font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.4;}
-  .row .meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;}
-  .row .meta b{color:var(--amber);font-weight:500;}
-  .row .badge2{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--closed);color:#fff;margin-left:6px;}
-  #list::-webkit-scrollbar{width:8px;}
-  #list::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+  .row .addr{font-size:10.5px;color:var(--muted);margin-top:2px;}
   #map{width:100%;height:100%;background:#0d1114;}
   .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;}
   .leaflet-popup-tip{background:var(--panel);border:1px solid var(--line);}
   .leaflet-popup-content{margin:14px 16px;font-family:'IBM Plex Sans KR',sans-serif;}
   .pp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;}
   .pp-title{font-size:15px;font-weight:600;margin:4px 0 6px;}
-  .pp-addr{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.4;}
+  .pp-addr{font-size:11.5px;color:var(--muted);margin-bottom:10px;}
   .pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;}
   .pp-grid .k{color:var(--muted);font-size:10.5px;}
   .pp-grid .v{font-family:'IBM Plex Mono',monospace;font-weight:500;margin-top:1px;}
   .pp-period{margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
-  .pp-closed{margin-top:6px;font-size:11px;color:#e08a8a;font-weight:600;}
-  .pin-label{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:600;color:#fff;}
   .leaflet-control-attribution{background:rgba(24,30,36,.85)!important;color:var(--muted)!important;}
-  .leaflet-control-attribution a{color:var(--muted)!important;}
   .leaflet-control-zoom a{background:var(--panel)!important;color:var(--ink)!important;border-color:var(--line)!important;}
+
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:900;}
+  #overlay.show{display:block;}
+  #drawer{position:fixed;top:0;right:-420px;width:400px;height:100%;background:var(--panel);border-left:1px solid var(--line);z-index:901;transition:right .2s ease;padding:22px;overflow-y:auto;}
+  #drawer.show{right:0;}
+  #drawer .close{position:absolute;top:16px;right:18px;color:var(--muted);cursor:pointer;font-size:18px;}
+  #drawer .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;}
+  #drawer h2{font-size:19px;margin:6px 0 2px;}
+  #drawer .addr{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+  .dsec{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;}
+  .dsec h3{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:0 0 10px;font-weight:600;}
+  .dgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;}
+  .dgrid .k{font-size:10.5px;color:var(--muted);}
+  .dgrid .v{font-family:'IBM Plex Mono',monospace;font-size:13px;margin-top:2px;}
+  .risklight{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-family:'IBM Plex Mono',monospace;}
+  .histitem{display:flex;justify-content:space-between;font-size:12px;padding:7px 0;border-bottom:1px solid #1c232a;}
+  .histitem:last-child{border-bottom:none;}
+
+  #loadingOverlay{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+  #loadingOverlay.hide{display:none;}
+  .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loadingText{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);}
+  #loadingBar{width:280px;height:4px;background:var(--panel-2);border-radius:2px;overflow:hidden;}
+  #loadingBarFill{height:100%;background:var(--amber);width:0%;transition:width .2s;}
 </style>
 </head>
 <body>
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingText">구글시트 불러오는 중...</div>
+  <div id="loadingBar"><div id="loadingBarFill"></div></div>
+</div>
+
 <div id="app">
-  <div id="sidebar">
-    <div id="head">
-      <div class="eyebrow">Multi-Brand Portfolio</div>
-      <h1>브랜드 매장 현황판</h1>
-      <div class="sub">웰라운지 · 웰카페 · 셀루닉하우스 · 나비엘 · 클럽밸런스</div>
-    </div>
-    <div id="stats">
-      <div class="stat"><div class="n" id="stat-count">-</div><div class="l">표시중</div></div>
-      <div class="stat"><div class="n" id="stat-active">-</div><div class="l">영업중</div></div>
-      <div class="stat"><div class="n" id="stat-closed">-</div><div class="l">폐점</div></div>
-    </div>
-    <div id="controls">
-      <input id="search" type="text" placeholder="매장명 · 주소 검색">
-      <div id="brandFilters"></div>
-      <div class="toggle-row">
-        <span>폐점 매장 표시</span>
-        <input type="checkbox" id="closedToggle" checked>
-      </div>
-      <div class="radius-row">
-        <span>영업반경</span>
-        <input type="range" id="radiusSlider" min="200" max="3000" step="100" value="1000">
-        <span class="val" id="radiusVal">1.0km</span>
-      </div>
-      <div class="toggle-row">
-        <span>반경 원 표시</span>
-        <input type="checkbox" id="radiusToggle" checked>
+  <div id="topbar">
+    <div class="brand">
+      <div>
+        <div class="eyebrow">AI Contract Radar · Live Sync</div>
+        <h1>AI 계약 통합관리 · 리스크 알림 대시보드</h1>
       </div>
     </div>
-    <div id="list"></div>
+    <div id="tabs">
+      <span id="syncStatus"></span>
+      <button id="refreshBtn">↻ 시트 새로고침</button>
+      <div class="tab active" data-view="dashboardView">리스크 대시보드</div>
+      <div class="tab" data-view="mapView">매장 지도</div>
+    </div>
   </div>
-  <div id="map"></div>
+  <div id="body">
+    <div id="dashboardView" class="view active">
+      <div class="kpirow" id="kpirow"></div>
+      <div class="panel">
+        <h2><span class="eyebrow">Alerts</span> 갱신 임박 · 리스크 알림</h2>
+        <div id="alertsList"></div>
+      </div>
+      <div class="panel">
+        <h2><span class="eyebrow">Contracts</span> 전체 계약 현황</h2>
+        <div class="note">폐점 여부는 매장명/비고에 "폐" 문구가 있는 경우만 자동 인식돼요. 시트에 취소선만 표시된 폐점 매장은 CSV로는 인식이 안 되니, 확실히 반영하려면 매장명 앞에 "폐)" 같은 표시를 남겨주세요.</div>
+        <div class="toolbar">
+          <input type="text" id="tsearch" placeholder="매장명 · 주소 검색">
+          <div id="brandFilters2"></div>
+        </div>
+        <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th data-k="brand">브랜드</th><th data-k="name">매장명</th><th data-k="addr">주소</th>
+            <th data-k="deposit">보증금</th><th data-k="rent">월임차료</th><th data-k="end">계약종료</th><th data-k="dday">D-day</th><th data-k="risk">리스크</th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+    <div id="mapView" class="view">
+      <div id="sidebar">
+        <div id="mcontrols">
+          <input id="search2" type="text" placeholder="매장명 · 주소 검색">
+          <div id="brandFilters"></div>
+          <div class="toggle-row"><span>폐점 매장 표시</span><input type="checkbox" id="closedToggle" checked></div>
+          <div class="radius-row"><span>영업반경</span><input type="range" id="radiusSlider" min="200" max="3000" step="100" value="1000"><span class="val" id="radiusVal">1.0km</span></div>
+          <div class="toggle-row"><span>반경 원 표시</span><input type="checkbox" id="radiusToggle" checked></div>
+        </div>
+        <div id="list2"></div>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+<div id="drawer">
+  <span class="close" id="drawerClose">&times;</span>
+  <div class="eyebrow" id="dEyebrow"></div>
+  <h2 id="dName"></h2>
+  <div class="addr" id="dAddr"></div>
+  <div class="dsec" id="dLeaseSec">
+    <h3>재계약 현황</h3>
+    <div class="dgrid">
+      <div><div class="k">보증금</div><div class="v" id="dDeposit"></div></div>
+      <div><div class="k">월 임차료</div><div class="v" id="dRent"></div></div>
+      <div><div class="k">계약시작</div><div class="v" id="dStart"></div></div>
+      <div><div class="k">계약종료</div><div class="v" id="dEnd"></div></div>
+    </div>
+  </div>
+  <div class="dsec">
+    <h3>리스크</h3>
+    <div class="risklight" id="dRisk"></div>
+  </div>
+  <div class="dsec">
+    <h3>매장 히스토리</h3>
+    <div id="dHistory"></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>
-const STORES2 = [
-{brand:"wellounge",name:"은평뉴타운점",addr:"서울특별시 은평구 진관2로 15-34 (진관동)",lat:37.637498,lng:126.9191185,deposit:364000000.0,rent:20222222.0,start:"2022-08-01",end:"2027-07-31",closed:false},
-{brand:"wellounge",name:"화성동탄나루점",addr:"경기도 화성시 동탄솔빛로 67 (반송동)",lat:37.1948374,lng:127.0742968,deposit:100000000.0,rent:7800000.0,start:"2020-09-01",end:"2026-08-31",closed:false},
-{brand:"wellounge",name:"대전노은점",addr:"대전광역시 유성구 은구비남로33번길 51  대전광역시 유성구 은구비남로33번길 48",lat:36.3745649,lng:127.3191383,deposit:160000000.0,rent:6600000.0,start:"2024-05-01",end:"2027-04-30",closed:false},
-{brand:"wellounge",name:"의정부금오점",addr:"경기도 의정부시 청사로 45 (금오동)",lat:37.752244,lng:127.0696035,deposit:50000000.0,rent:3300000.0,start:"2024-03-01",end:"2027-09-30",closed:false},
-{brand:"wellounge",name:"화성동탄호수공원점",addr:"경기도 화성시 동탄대로5길 32 (송동)",lat:37.1669984,lng:127.1039327,deposit:640000000.0,rent:42137760.0,start:"2021-12-07",end:"2026-12-06",closed:false},
-{brand:"wellounge",name:"부산수영점",addr:"부산광역시 수영구 수영로 685 (광안동)",lat:35.1667586,lng:129.1147667,deposit:100000000.0,rent:2500000.0,start:"2024-08-01",end:"2026-07-31",closed:false},
-{brand:"wellounge",name:"울산성남점",addr:"울산광역시 중구 시계탑거리 40 (성남동)",lat:35.5534759,lng:129.3215241,deposit:15000000.0,rent:4000000.0,start:"2024-08-16",end:"2026-08-15",closed:false},
-{brand:"wellounge",name:"부산장산점",addr:"부산광역시 해운대구 양운로 92 (좌동)",lat:35.1712489,lng:129.1750215,deposit:150000000.0,rent:3500000.0,start:"2024-09-01",end:"2027-08-31",closed:false},
-{brand:"wellounge",name:"광주첨단점",addr:"광주광역시 광산구 첨단중앙로 110 (월계동)",lat:35.2151873,lng:126.8432482,deposit:100000000.0,rent:2900000.0,start:"2024-10-01",end:"2027-09-30",closed:false},
-{brand:"wellounge",name:"대구본리점",addr:"대구광역시 달서구 구마로 89 (본리동)",lat:35.8377906,lng:128.5375804,deposit:300000000.0,rent:10000000.0,start:"2026-05-11",end:"2029-05-10",closed:false},
-{brand:"wellcafe",name:"서울목동점",addr:"서울특별시 양천구 오목로 345 (목동)",lat:37.5248951,lng:126.8758038,deposit:450000000.0,rent:27808500.0,start:"2019-03-07",end:"2027-03-06",closed:false},
-{brand:"wellcafe",name:"서울압구정점",addr:"서울특별시 강남구 압구정로 140 (신사동)",lat:37.524637,lng:127.0239957,deposit:300000000.0,rent:20000000.0,start:"2019-05-29",end:"2027-05-28",closed:false},
-{brand:"wellcafe",name:"서울왕십리점",addr:"서울특별시 중구 마장로 119 (황학동)",lat:37.568066,lng:127.0232213,deposit:100000000.0,rent:10700000.0,start:"2019-06-01",end:"2028-05-31",closed:false},
-{brand:"wellcafe",name:"부산센텀점",addr:"부산광역시 해운대구 센텀남대로 50 (우동)",lat:35.1681323,lng:129.1312846,deposit:190000000.0,rent:11400000.0,start:"2019-06-18",end:"2026-09-17",closed:false},
-{brand:"wellcafe",name:"광주상무점",addr:"광주광역시 서구 치평로 106 (치평동)",lat:35.1567443,lng:126.8477803,deposit:200000000.0,rent:13000000.0,start:"2019-10-31",end:"2021-11-30",closed:true},
-{brand:"wellcafe",name:"울산삼산점",addr:"울산광역시 남구 돋질로 292 (삼산동)",lat:35.5440045,lng:129.336763,deposit:100000000.0,rent:5500000.0,start:"2019-12-11",end:"2026-12-10",closed:false},
-{brand:"wellcafe",name:"대구수성점",addr:"대구광역시 수성구 달구벌대로 2381 (범어동)",lat:35.859376,lng:128.6307058,deposit:200000000.0,rent:6988000.0,start:"2019-10-07",end:"2026-10-06",closed:false},
-{brand:"wellcafe",name:"창원상남점",addr:"경남 창원시 성산구 단정로 13",lat:35.2207034,lng:128.6823212,deposit:200000000.0,rent:9500000.0,start:"2020-02-06",end:"2027-02-05",closed:false},
-{brand:"wellcafe",name:"서울반포점",addr:"서울특별시 서초구 서초중앙로 251 (반포동)",lat:37.5038239,lng:127.0105378,deposit:100000000.0,rent:10000000.0,start:"2020-03-02",end:"2027-03-01",closed:false},
-{brand:"wellcafe",name:"폐점)성남판교점",addr:"경기도 성남시 분당구 동판교로177번길 25 (삼평동, 판교 호반 써밋 플레이스)",lat:37.3972827,lng:127.1135331,deposit:70000000.0,rent:3000000.0,start:"2020-06-05",end:"2022-06-04",closed:true},
-{brand:"wellcafe",name:"수원광교점",addr:"경기도 수원시 영통구 센트럴타운로 85 (이의동, 광교C1 호반베르디움, Summit Place광교)",lat:37.2906725,lng:127.0505156,deposit:100000000.0,rent:7210000.0,start:"2020-07-03",end:"2027-07-31",closed:false},
-{brand:"wellcafe",name:"서울대치점",addr:"서울특별시 강남구 선릉로 323 (역삼동)",lat:37.5030426,lng:127.041588,deposit:250000000.0,rent:20000000.0,start:"2020-08-01",end:"2028-07-31",closed:false},
-{brand:"wellcafe",name:"인천송도점",addr:"인천광역시 연수구 신송로 153 (송도동)",lat:37.3973453,lng:126.6491107,deposit:200000000.0,rent:9200000.0,start:"2020-07-09",end:"2027-07-08",closed:false},
-{brand:"wellcafe",name:"안양평촌점",addr:"경기도 안양시 동안구 시민대로 311 (관양동)",lat:37.3961042,lng:126.9646743,deposit:280000000.0,rent:14948300.0,start:"2020-08-07",end:"2027-08-06",closed:false},
-{brand:"wellcafe",name:"부산기장점",addr:"부산광역시 기장군 정관읍 정관로 563",lat:35.3219294,lng:129.1756493,deposit:200000000.0,rent:7200000.0,start:"2020-08-12",end:"2026-10-11",closed:false},
-{brand:"wellcafe",name:"성남정자점",addr:"경기도 성남시 분당구 정자일로 234 (정자동)",lat:37.3711946,lng:127.1062676,deposit:300000000.0,rent:16200000.0,start:"2020-07-01",end:"2028-06-30",closed:false},
-{brand:"wellcafe",name:"서울합정메세나폴리스점",addr:"서울특별시 마포구 양화로 45 (서교동, 메세나폴리스)",lat:37.5509108,lng:126.9137604,deposit:80000000.0,rent:4200000.0,start:"2020-07-23",end:"2027-07-22",closed:false},
-{brand:"wellcafe",name:"고양라페스타점",addr:"경기도 고양시 일산동구 중앙로1275번길 60-30 (장항동)",lat:37.6604463,lng:126.7688969,deposit:300000000.0,rent:11000000.0,start:"2020-07-29",end:"2027-07-28",closed:false},
-{brand:"wellcafe",name:"부천중동점",addr:"경기도 부천시 원미구 길주로 209 (중동)",lat:37.5064378,lng:126.8030795,deposit:200000000.0,rent:14178000.0,start:"2020-07-10",end:"2028-01-09",closed:false},
-{brand:"wellcafe",name:"서울잠실점",addr:"서울특별시 송파구 석촌호수로 172 (삼전동)",lat:37.5065278,lng:127.0960685,deposit:200000000.0,rent:12000000.0,start:"2019-09-01",end:"2027-08-31",closed:false},
-{brand:"wellcafe",name:"평택소사벌점",addr:"경기도 평택시 비전2로 194 (비전동)",lat:37.0007626,lng:127.1121191,deposit:160000000.0,rent:8925000.0,start:"2020-08-28",end:"2027-08-27",closed:false},
-{brand:"wellcafe",name:"시흥은계점",addr:"경기도 시흥시 은계번영길 7 (은행동)",lat:37.437098,lng:126.8016168,deposit:150000000.0,rent:10150000.0,start:"2020-08-17",end:"2025-08-16",closed:true},
-{brand:"wellcafe",name:"부산연산점",addr:"부산광역시 연제구 중앙대로 1125 (연산동)",lat:35.187993,lng:129.080465,deposit:150000000.0,rent:7250000.0,start:"2020-07-14",end:"2026-07-13",closed:true},
-{brand:"wellcafe",name:"대구도원점",addr:"대구광역시 달서구 한실로 75 (도원동)",lat:35.8072025,lng:128.5351364,deposit:200000000.0,rent:11000000.0,start:"2020-08-31",end:"2029-10-31",closed:false},
-{brand:"wellcafe",name:"제주노형점",addr:"제주특별자치도 제주시 연북로 30 (노형동)",lat:33.4816724,lng:126.484579,deposit:80000000.0,rent:6250000.0,start:"2020-08-20",end:"2026-10-19",closed:false},
-{brand:"wellcafe",name:"서울상도점",addr:"서울특별시 동작구 상도로 상도로 176(상도동)",lat:37.5043438,lng:126.9386023,deposit:200000000.0,rent:8400000.0,start:"2020-08-20",end:"2026-08-19",closed:false},
-{brand:"wellcafe",name:"광명철산점",addr:"경기도 광명시 철산로 32 (철산동)",lat:37.4762305,lng:126.8698103,deposit:250000000.0,rent:11783200.0,start:"2020-08-28",end:"2026-08-31",closed:false},
-{brand:"wellcafe",name:"양산범어점",addr:"경남 양산시 물금읍 청운로 349",lat:35.3274909,lng:129.0157577,deposit:60000000.0,rent:5000000.0,start:"2020-08-14",end:"2026-11-13",closed:false},
-{brand:"wellcafe",name:"경산정평점",addr:"경상북도 경산시 대학로 30 (정평동)",lat:35.8338045,lng:128.7298604,deposit:150000000.0,rent:5500000.0,start:"2020-09-09",end:"2026-09-08",closed:false},
-{brand:"wellcafe",name:"부산명지점",addr:"부산광역시 강서구 명지국제8로 241 (명지동)",lat:35.0984663,lng:128.9192126,deposit:150000000.0,rent:11000000.0,start:"2020-09-03",end:"2027-10-02",closed:false},
-{brand:"wellcafe",name:"창원양덕점",addr:"경상남도 창원시 마산회원구 용마로 130 (양덕동)",lat:35.2234392,lng:128.5859205,deposit:300000000.0,rent:11250000.0,start:"2020-09-09",end:"2026-09-08",closed:false},
-{brand:"wellcafe",name:"서울용산점",addr:"서울특별시 용산구 이촌로 352 (용산동6가)",lat:37.5469251,lng:126.9406017,deposit:null,rent:2975000.0,start:"2020-11-01",end:"2023-10-31",closed:true},
-{brand:"wellcafe",name:"대구동천점",addr:"대구광역시 북구 동천로 120 (동천동)",lat:35.942284,lng:128.5609386,deposit:200000000.0,rent:14000000.0,start:"2020-09-03",end:"2025-09-02",closed:true},
-{brand:"wellcafe",name:"광주신창점",addr:"광주광역시 광산구 신창로 64 (신창동)",lat:35.1909692,lng:126.8374328,deposit:200000000.0,rent:6600000.0,start:"2020-09-03",end:"2026-09-02",closed:false},
-{brand:"wellcafe",name:"전주효자점",addr:"전북 전주시 완산구 홍산로 262",lat:35.8172111,lng:127.1064481,deposit:100000000.0,rent:8190000.0,start:"2020-09-16",end:"2026-10-30",closed:false},
-{brand:"wellcafe",name:"원주단계점",addr:"강원특별자치도 원주시 봉화로 35 (단계동)",lat:37.3477964,lng:127.9284069,deposit:150000000.0,rent:7140000.0,start:"2020-08-26",end:"2026-08-25",closed:false},
-{brand:"wellcafe",name:"진주평거점",addr:"경상남도 진주시 진양호로 221 (평거동, 진주평거우방아이유쉘스카이팰리스)",lat:35.17411,lng:128.060251,deposit:285000000.0,rent:9500000.0,start:"2020-09-21",end:"2026-09-20",closed:false},
-{brand:"wellcafe",name:"세종다정점",addr:"세종특별자치시 다정중앙로 46 (다정동)",lat:36.4944798,lng:127.2493095,deposit:500000000.0,rent:13000000.0,start:"2020-09-14",end:"2026-09-13",closed:false},
-{brand:"wellcafe",name:"청주남문점",addr:"충청북도 청주시 상당구 상당로 49 (남문로2가)",lat:36.6329394,lng:127.4892776,deposit:100000000.0,rent:7400000.0,start:"2020-09-16",end:"2028-09-15",closed:false},
-{brand:"wellcafe",name:"웰라운지\n 화성동탄나루점",addr:"경기도 화성시 동탄솔빛로 67 (반송동)",lat:37.1948374,lng:127.0742968,deposit:100000000.0,rent:7800000.0,start:"2020-09-01",end:"2024-08-31",closed:true},
-{brand:"wellcafe",name:"서울고덕점",addr:"서울특별시 강동구 고덕로 399 (고덕동, 고덕센트럴푸르지오)",lat:37.5577148,lng:127.1700554,deposit:300000000.0,rent:17000000.0,start:"2020-09-15",end:"2024-09-14",closed:true},
-{brand:"wellcafe",name:"울산옥동점",addr:"울산광역시 남구 문수로 377 (옥동)",lat:35.5347055,lng:129.2948088,deposit:300000000.0,rent:12000000.0,start:"2020-10-01",end:"2026-09-30",closed:false},
-{brand:"wellcafe",name:"서울청담점",addr:"서울특별시 강남구 삼성로 726 (청담동)",lat:37.5205322,lng:127.0496679,deposit:400000000.0,rent:13200000.0,start:"2020-10-23",end:"2026-10-22",closed:false},
-{brand:"wellcafe",name:"서울신촌점",addr:"서울특별시 서대문구 신촌로 73 (창천동)",lat:37.5562823,lng:126.9347223,deposit:185440000.0,rent:18822160.0,start:"2020-10-29",end:"2024-10-30",closed:true},
-{brand:"wellcafe",name:"광주봉선점",addr:"광주광역시 남구 봉선로 168 (봉선동)",lat:35.1226673,lng:126.9136401,deposit:500000000.0,rent:17000000.0,start:"2020-10-01",end:"2028-09-30",closed:false},
-{brand:"wellcafe",name:"부천옥길점",addr:"경기도 부천시 소사구 양지로 205 (옥길동)",lat:37.4679525,lng:126.8242762,deposit:300000000.0,rent:12442500.0,start:"2020-09-25",end:"2026-09-24",closed:false},
-{brand:"wellcafe",name:"목포상동점",addr:"전라남도 목포시 백년대로 320 (상동)",lat:34.8045148,lng:126.4226167,deposit:50000000.0,rent:3090000.0,start:"2020-10-01",end:"2026-09-30",closed:false},
-{brand:"wellcafe",name:"용인상현점",addr:"경기도 용인시 수지구 수지로 76 (상현동)",lat:37.3095965,lng:127.0769763,deposit:100000000.0,rent:8400000.0,start:"2020-10-08",end:"2026-10-07",closed:false},
-{brand:"wellcafe",name:"폐)서울불광점",addr:"서울특별시 은평구 통일로 830 (불광동)",lat:37.6177691,lng:126.9227183,deposit:200000000.0,rent:11450000.0,start:"2020-09-18",end:"2022-09-17",closed:true},
-{brand:"wellcafe",name:"여수웅천점",addr:"전라남도 여수시 신월로 96 (웅천동)",lat:34.7493894,lng:127.6790024,deposit:100000000.0,rent:9600000.0,start:"2020-09-18",end:"2027-09-17",closed:false},
-{brand:"wellcafe",name:"서울위례중앙점",addr:"서울특별시 송파구 위례광장로 136 (장지동, 위례아이파크)",lat:37.4764108,lng:127.1420412,deposit:150000000.0,rent:10000000.0,start:"2020-10-19",end:"2026-10-18",closed:false},
-{brand:"wellcafe",name:"용인죽전점",addr:"경기도 용인시 수지구 용구대로 2793 (죽전동, LH 청년나래家)",lat:37.3348721,lng:127.1083822,deposit:300000000.0,rent:14575800.0,start:"2020-10-05",end:"2026-10-04",closed:false},
-{brand:"wellcafe",name:"경주노동점",addr:"경상북도 경주시 원효로 111 (노동동)",lat:35.8421219,lng:129.2113714,deposit:50000000.0,rent:3500000.0,start:"2020-10-16",end:"2022-10-15",closed:true},
-{brand:"wellcafe",name:"대구동성로중앙점",addr:"대구광역시 중구 달구벌대로 2127 (봉산동)",lat:35.8652186,lng:128.5966325,deposit:500000000.0,rent:15000000.0,start:"2020-12-15",end:"2025-12-14",closed:true},
-{brand:"wellcafe",name:"구미옥계점",addr:"경상북도 구미시 옥계북로 8 (옥계동)",lat:36.1384124,lng:128.4182189,deposit:null,rent:6000000.0,start:"2022-11-21",end:"2026-11-20",closed:false},
-{brand:"wellcafe",name:"부산사상점",addr:"부산광역시 사상구 사상로 215 (괘법동)",lat:35.1524,lng:128.9903,deposit:100000000.0,rent:7000000.0,start:"2020-10-12",end:"2022-10-11",closed:true},
-{brand:"wellcafe",name:"부산동래점",addr:"부산광역시 동래구 중앙대로 1325 (온천동)",lat:35.2052554,lng:129.0775087,deposit:100000000.0,rent:6950000.0,start:"2020-10-12",end:"2026-10-11",closed:false},
-{brand:"wellcafe",name:"대전유성점",addr:"대전광역시 유성구 대학로 44 (봉명동)",lat:36.357575,lng:127.3433425,deposit:250000000.0,rent:14000000.0,start:"2020-10-14",end:"2026-10-13",closed:false},
-{brand:"wellcafe",name:"천안불당점",addr:"충청남도 천안시 서북구 불당25로 236 (불당동, 디엠센텀시티)",lat:36.821962,lng:127.1101831,deposit:160000000.0,rent:12100000.0,start:"2020-10-07",end:"2026-10-06",closed:false},
-{brand:"wellcafe",name:"서울학동점",addr:"서울특별시 강남구 학동로 215 (논현동)",lat:37.5148754,lng:127.032599,deposit:200000000.0,rent:20000000.0,start:"2020-11-06",end:"2022-11-05",closed:true},
-{brand:"wellcafe",name:"인천논현점",addr:"인천광역시 남동구 논고개로 73 (논현동)",lat:37.3982222,lng:126.7265416,deposit:130000000.0,rent:9500000.0,start:"2020-10-27",end:"2026-10-26",closed:false},
-{brand:"wellcafe",name:"김포걸포점",addr:"경기도 김포시 걸포2로 83 (걸포동, 한강메트로자이1단지)",lat:37.6324793,lng:126.7017843,deposit:130000000.0,rent:13000000.0,start:"2020-09-24",end:"2027-09-23",closed:false},
-{brand:"wellcafe",name:"부산서면점",addr:"부산광역시 부산진구 중앙대로 711 (부전동)",lat:35.1563138,lng:129.0588515,deposit:300000000.0,rent:18000000.0,start:"2022-10-30",end:"2026-10-29",closed:false},
-{brand:"wellcafe",name:"포항죽도점",addr:"경상북도 포항시 북구 포스코대로 291 (죽도동)",lat:36.0203636,lng:129.3567256,deposit:100000000.0,rent:7000000.0,start:"2020-09-09",end:"2026-09-08",closed:false},
-{brand:"wellcafe",name:"거제고현점",addr:"경상남도 거제시 거제중앙로 1868-2 (고현동)",lat:34.8854856,lng:128.6250051,deposit:200000000.0,rent:5000000.0,start:"2020-11-03",end:"2026-11-02",closed:false},
-{brand:"wellcafe",name:"하남미사신도시점",addr:"경기도 하남시 미사강변대로 60 (풍산동)",lat:37.5550868,lng:127.1868765,deposit:250000000.0,rent:12435000.0,start:"2020-11-13",end:"2026-11-12",closed:false},
-{brand:"wellcafe",name:"인천부평점",addr:"인천광역시 부평구 대정로 50 (부평동)",lat:37.4947236,lng:126.7257114,deposit:400000000.0,rent:12600000.0,start:"2020-11-15",end:"2026-11-14",closed:false},
-{brand:"wellcafe",name:"부산하단점",addr:"부산광역시 사하구 낙동남로 1403 (하단동)",lat:35.1065876,lng:128.9652012,deposit:200000000.0,rent:13650000.0,start:"2020-11-06",end:"2026-11-05",closed:false},
-{brand:"wellcafe",name:"인천계양점",addr:"인천광역시 계양구 계양문화로 119 (용종동, 인천 계양 코아루 센트럴파크)",lat:37.5418326,lng:126.73786,deposit:160000000.0,rent:5900000.0,start:"2020-11-18",end:"2026-12-23",closed:false},
-{brand:"wellcafe",name:"파주운정점",addr:"경기도 파주시 청암로17번길 53 (목동동)",lat:37.7281531,lng:126.7352303,deposit:130000000.0,rent:11800000.0,start:"2020-11-01",end:"2026-10-31",closed:false},
-{brand:"wellcafe",name:"서울마곡점",addr:"서울특별시 강서구 공항대로 242 (마곡동)",lat:37.5585277,lng:126.8339919,deposit:150000000.0,rent:17100000.0,start:"2020-11-18",end:"2026-11-17",closed:false},
-{brand:"wellcafe",name:"구리점",addr:"경기도 구리시 장자대로 76 (수택동)",lat:37.5872928,lng:127.1389731,deposit:350000000.0,rent:14900000.0,start:"2020-10-16",end:"2026-10-15",closed:false},
-{brand:"wellcafe",name:"서울영등포점",addr:"서울특별시 영등포구 영등포로 210 (영등포동4가)",lat:37.5195414,lng:126.9045041,deposit:300000000.0,rent:22000000.0,start:"2020-11-03",end:"2026-11-02",closed:false},
-{brand:"wellcafe",name:"수원인계점",addr:"경기도 수원시 팔달구 효원로 288 (인계동)",lat:37.2608241,lng:127.0329984,deposit:300000000.0,rent:11820000.0,start:"2021-01-01",end:"2026-12-31",closed:false},
-{brand:"wellcafe",name:"창원진해점",addr:"경상남도 창원시 진해구 해원로 45 (석동, 진해석동 우림필유)",lat:35.1564188,lng:128.696061,deposit:100000000.0,rent:4500000.0,start:"2020-11-20",end:"2024-11-19",closed:true},
-{brand:"wellcafe",name:"수원호매실점",addr:"경기도 수원시 권선구 금곡로 193 (금곡동)",lat:37.2738644,lng:126.9515921,deposit:100000000.0,rent:7000000.0,start:"2020-11-20",end:"2026-11-19",closed:false},
-{brand:"wellcafe",name:"창원의창점",addr:"경상남도 창원시 의창구 중동중앙로 47 (중동)",lat:35.2566533,lng:128.6250246,deposit:350000000.0,rent:17000000.0,start:"2020-11-06",end:"2026-11-05",closed:false},
-{brand:"wellcafe",name:"남양주별내점",addr:"경기 남양주시 순화궁로 343",lat:37.6573355,lng:127.1256689,deposit:170000000.0,rent:12000000.0,start:"2020-10-29",end:"2026-10-28",closed:false},
-{brand:"wellcafe",name:"용인처인점",addr:"경기도 용인시 처인구 백옥대로 1128 (김량장동)",lat:37.2302189,lng:127.2116229,deposit:100000000.0,rent:5870100.0,start:"2020-11-13",end:"2026-11-12",closed:false},
-{brand:"wellcafe",name:"익산모현점",addr:"전북특별자치도 익산시 선화로1길 20 (모현동1가)",lat:35.9514023,lng:126.9384763,deposit:100000000.0,rent:9000000.0,start:"2020-11-03",end:"2026-11-02",closed:false},
-{brand:"wellcafe",name:"안성아양점",addr:"경기도 안성시 아양1로 73 (옥산동)",lat:37.0082252,lng:127.2584582,deposit:150000000.0,rent:7500000.0,start:"2020-11-20",end:"2022-11-19",closed:true},
-{brand:"wellcafe",name:"경기광주경안점",addr:"경기도 광주시 파발로59번길 26 (경안동)",lat:37.4129389,lng:127.2606681,deposit:120000000.0,rent:6000000.0,start:"2020-11-18",end:"2026-11-17",closed:false},
-{brand:"wellcafe",name:"대구현풍점",addr:"대구광역시 달성군 현풍읍 테크노상업로 62",lat:35.6932055,lng:128.4548737,deposit:150000000.0,rent:9000000.0,start:"2021-07-13",end:"2025-07-12",closed:true},
-{brand:"wellcafe",name:"서울중계점",addr:"서울특별시 노원구 덕릉로 688 (중계동)",lat:37.6589447,lng:127.0757142,deposit:400000000.0,rent:20000000.0,start:"2020-11-16",end:"2024-11-15",closed:true},
-{brand:"wellcafe",name:"울산송정점",addr:"울산광역시 북구 화산로 115 (송정동)",lat:35.6023486,lng:129.3651692,deposit:200000000.0,rent:8000000.0,start:"2020-12-01",end:"2026-11-30",closed:false},
-{brand:"wellcafe",name:"대전둔산점",addr:"대전광역시 서구 대덕대로 195 (둔산동)",lat:36.3507511,lng:127.3775923,deposit:200000000.0,rent:13000000.0,start:"2020-11-02",end:"2026-11-01",closed:false},
-{brand:"wellcafe",name:"제주서귀포점",addr:"제주특별자치도 서귀포시 일주동로8666번길 5 (동홍동)",lat:33.2538366,lng:126.5623485,deposit:80000000.0,rent:4583333.0,start:"2020-11-13",end:"2024-11-12",closed:true},
-{brand:"wellcafe",name:"대전중앙로점",addr:"대전광역시 중구 중앙로 126 (대흥동)",lat:36.3276499,lng:127.4241236,deposit:160000000.0,rent:8000000.0,start:"2020-11-20",end:"2024-11-19",closed:true},
-{brand:"wellcafe",name:"의정부민락점",addr:"경기도 의정부시 용민로 493 (민락동)",lat:37.7499921,lng:127.1186041,deposit:200000000.0,rent:14200000.0,start:"2020-11-18",end:"2027-01-17",closed:false},
-{brand:"wellcafe",name:"서울문정점",addr:"서울 송파구 송파대로 201",lat:37.4969143,lng:127.1121343,deposit:180000000.0,rent:14900000.0,start:"2020-11-25",end:"2024-11-24",closed:true},
-{brand:"wellcafe",name:"김해삼계점",addr:"경상남도 김해시 삼계중앙로 22 (삼계동)",lat:35.2601443,lng:128.8675486,deposit:200000000.0,rent:6075000.0,start:"2020-11-11",end:"2026-11-10",closed:false},
-{brand:"wellcafe",name:"서울구로점",addr:"서울특별시 구로구 도림로 81 (구로동)",lat:37.4902931,lng:126.892211,deposit:300000000.0,rent:12000000.0,start:"2020-11-03",end:"2022-11-02",closed:true},
-{brand:"wellcafe",name:"청주강서점",addr:"충청북도 청주시 흥덕구 강서로 107 (강서동)",lat:36.6249108,lng:127.4281278,deposit:212400000.0,rent:9014000.0,start:"2021-01-01",end:"2028-01-31",closed:false},
-{brand:"wellcafe",name:"서울답십리점",addr:"서울 동대문구 사가정로 80",lat:37.5752453,lng:127.0549757,deposit:230000000.0,rent:11785000.0,start:"2020-11-25",end:"2024-11-24",closed:true},
-{brand:"wellcafe",name:"김해장유신도시점",addr:"경상남도 김해시 율하6로 52 (장유동)",lat:35.1717473,lng:128.8246449,deposit:250000000.0,rent:11300000.0,start:"2020-11-26",end:"2026-11-25",closed:false},
-{brand:"wellcafe",name:"오산원동점",addr:"경기도 오산시 경기대로 249 (원동)",lat:37.1471525,lng:127.0733132,deposit:100000000.0,rent:3700000.0,start:"2020-11-03",end:"2028-11-02",closed:false},
-{brand:"wellcafe",name:"군산수송점",addr:"전북특별자치도 군산시 월명로 251 (수송동)",lat:35.9664794,lng:126.7151958,deposit:160000000.0,rent:8925000.0,start:"2020-10-12",end:"2026-10-11",closed:false},
-{brand:"wellcafe",name:"순천연향점",addr:"전라남도 순천시 연향중앙상가길 13 (연향동)",lat:34.9524871,lng:127.5196815,deposit:100000000.0,rent:7354000.0,start:"2021-02-01",end:"2027-01-31",closed:false},
-{brand:"wellcafe",name:"HP지원팀\n 대구신암점",addr:"대구광역시 동구 아양로 71 (신암동)",lat:35.882915,lng:128.6217462,deposit:200000000.0,rent:5800000.0,start:"2021-01-01",end:"2024-12-31",closed:true},
-{brand:"wellcafe",name:"남양주다산지금점",addr:"경기 남양주시 다산지금로 139",lat:37.6006831,lng:127.1743448,deposit:200000000.0,rent:9800000.0,start:"2020-09-25",end:"2025-09-24",closed:true},
-{brand:"wellcafe",name:"서울쌍문점",addr:"서울특별시 도봉구 도봉로 571 (쌍문동)",lat:37.6576878,lng:127.0384102,deposit:100000000.0,rent:10000000.0,start:"2020-11-03",end:"2024-11-02",closed:true},
-{brand:"wellcafe",name:"수원조원점",addr:"경기도 수원시 장안구 경수대로 914 (조원동)",lat:37.2971235,lng:127.0226429,deposit:200000000.0,rent:5800000.0,start:"2021-01-22",end:"2027-01-21",closed:false},
-{brand:"wellcafe",name:"광주매곡점",addr:"광주광역시 북구 설죽로 319 (매곡동)",lat:35.1882135,lng:126.8985604,deposit:100000000.0,rent:10000000.0,start:"2021-03-05",end:"2027-03-04",closed:false},
-{brand:"wellcafe",name:"홍성내포신도시점",addr:"충청남도 홍성군 홍북읍 청사로174번길 2",lat:36.659379,lng:126.6789817,deposit:150000000.0,rent:6000000.0,start:"2021-03-05",end:"2027-03-04",closed:false},
-{brand:"wellcafe",name:"이천중리점",addr:"경기도 이천시 중리천로 58 (중리동)",lat:37.2797177,lng:127.444094,deposit:100000000.0,rent:11000000.0,start:"2021-03-13",end:"2027-03-12",closed:false},
-{brand:"wellcafe",name:"강릉중앙점",addr:"강원특별자치도 강릉시 경강로 2102 (임당동)",lat:37.7550211,lng:128.8969544,deposit:200000000.0,rent:9500000.0,start:"2021-04-09",end:"2025-04-08",closed:true},
-{brand:"wellcafe",name:"충주터미널점",addr:"충청북도 충주시 봉계1길 50 (칠금동)",lat:36.9809245,lng:127.915495,deposit:200000000.0,rent:10000000.0,start:"2021-03-31",end:"2027-03-30",closed:false},
-{brand:"wellcafe",name:"포항양덕점",addr:"경상북도 포항시 북구 장량로 160 (양덕동)",lat:36.0814314,lng:129.3979758,deposit:120000000.0,rent:5768000.0,start:"2021-04-01",end:"2027-03-31",closed:false},
-{brand:"wellcafe",name:"울산일산점",addr:"울산광역시 동구 방어진순환도로 652 (일산동)",lat:35.499722,lng:129.4297347,deposit:75000000.0,rent:6700000.0,start:"2021-04-09",end:"2025-04-08",closed:true},
-{brand:"wellcafe",name:"양주옥정점",addr:"경기도 양주시 옥정로 200 (옥정동)",lat:37.8194146,lng:127.092139,deposit:130000000.0,rent:8850000.0,start:"2021-04-15",end:"2027-04-14",closed:false},
-{brand:"wellcafe",name:"안산중앙점",addr:"경기도 안산시 단원구 중앙대로 929 (고잔동)",lat:37.3171541,lng:126.8399427,deposit:300000000.0,rent:14000000.0,start:"2021-04-20",end:"2027-04-19",closed:false},
-{brand:"wellcafe",name:"인천도화점",addr:"인천광역시 미추홀구 숙골로88번길 12 (도화동, 더샵 인천스카이타워 1단지)",lat:37.4700482,lng:126.6651593,deposit:120000000.0,rent:12000000.0,start:"2021-04-20",end:"2026-09-26",closed:false},
-{brand:"wellcafe",name:"안양만안점",addr:"경기도 안양시 만안구 병목안로 15 (안양동)",lat:37.3986126,lng:126.9190837,deposit:114000000.0,rent:4641000.0,start:"2021-06-21",end:"2025-01-31",closed:true},
-{brand:"wellcafe",name:"서산동문점",addr:"충청남도 서산시 중앙로 66 (동문동)",lat:36.784845,lng:126.4654,deposit:300000000.0,rent:8900000.0,start:"2021-06-14",end:"2025-06-13",closed:true},
-{brand:"wellcafe",name:"안동옥동점",addr:"경상북도 안동시 경북대로 359 (옥동)",lat:36.5621034,lng:128.7029974,deposit:50000000.0,rent:5500000.0,start:"2021-05-24",end:"2027-06-23",closed:false},
-{brand:"wellcafe",name:"용인흥덕점",addr:"경기도 용인시 기흥구 흥덕중앙로 55 (영덕동)",lat:37.2766244,lng:127.0730752,deposit:200000000.0,rent:9800000.0,start:"2021-04-12",end:"2027-04-11",closed:false},
-{brand:"wellcafe",name:"화성동탄목동점",addr:"경기 화성시 동탄신리천로 411",lat:37.1826564,lng:127.1243218,deposit:300000000.0,rent:18000000.0,start:"2021-06-13",end:"2023-11-12",closed:true},
-{brand:"wellcafe",name:"김포장기점",addr:"경기도 김포시 김포한강4로 123 (장기동)",lat:37.6445702,lng:126.6673233,deposit:300000000.0,rent:15000000.0,start:"2021-09-01",end:"2025-08-31",closed:true},
-{brand:"wellcafe",name:"화성동탄호수공원점",addr:"경기도 화성시 동탄대로5길 32 (송동)",lat:37.1669984,lng:127.1039327,deposit:640000000.0,rent:41322000.0,start:"2021-12-07",end:"2025-12-06",closed:false},
-{brand:"wellcafe",name:"인천청라점",addr:"인천광역시 서구 중봉대로 594 (청라동)",lat:37.5325427,lng:126.6502786,deposit:280000000.0,rent:15600000.0,start:"2022-04-01",end:"2027-03-31",closed:false},
-{brand:"wellcafe",name:"광명역점",addr:"경기도 광명시 양지로 17 (일직동)",lat:37.4187493,lng:126.8826475,deposit:304400000.0,rent:21400000.0,start:"2022-03-15",end:"2025-03-14",closed:true},
-{brand:"wellcafe",name:"상암DMC점",addr:"서울특별시 마포구 월드컵북로 332 (상암동)",lat:37.5759168,lng:126.895034,deposit:250000000.0,rent:15000000.0,start:"2022-03-03",end:"2025-02-28",closed:true},
-{brand:"wellcafe",name:"해지)남양주평내점",addr:"경기도 남양주시 경춘로 1309 (평내동)",lat:37.650549,lng:127.2375709,deposit:650000000.0,rent:28000000.0,start:"2022-04-20",end:"2025-04-19",closed:true},
-{brand:"wellcafe",name:"성남판교점",addr:"경기도 성남시 분당구 대왕판교로606번길 58 (삼평동)",lat:37.3955218,lng:127.113649,deposit:400000000.0,rent:17000000.0,start:"2022-05-01",end:"2027-04-30",closed:false},
-{brand:"wellcafe",name:"웰라운지\n 은평뉴타운점",addr:"서울특별시 은평구 진관2로 15-34 (진관동)",lat:37.637498,lng:126.9191185,deposit:364000000.0,rent:20222222.0,start:"2022-08-01",end:"2027-07-31",closed:true},
-{brand:"wellcafe",name:"김천혁신도시점",addr:"경상북도 김천시 혁신3로 26 (율곡동)",lat:36.1165295,lng:128.1816727,deposit:120000000.0,rent:6500000.0,start:"2022-06-17",end:"2026-06-16",closed:true},
-{brand:"wellcafe",name:"군포AK금정점",addr:"경기도 군포시 엘에스로 143 (금정동, 힐스테이트 금정역)",lat:37.3727334,lng:126.9447533,deposit:150000000.0,rent:13700000.0,start:"2022-07-20",end:"2027-08-07",closed:false},
-{brand:"wellcafe",name:"통영무전점\n (폐 240930)",addr:"경상남도 통영시 중앙로 311 (무전동)",lat:34.8581139,lng:128.4282054,deposit:200000000.0,rent:6500000.0,start:"2022-07-15",end:"2025-07-14",closed:true},
-{brand:"wellcafe",name:"춘천퇴계점",addr:"강원특별자치도 춘천시 김유정로 1884 (퇴계동)",lat:37.8542485,lng:127.737132,deposit:50000000.0,rent:3800000.0,start:"2022-07-01",end:"2027-06-30",closed:false},
-{brand:"wellcafe",name:"공주신관점",addr:"충청남도 공주시 한적1길 2 (신관동)",lat:36.4746231,lng:127.1377575,deposit:50000000.0,rent:3500000.0,start:"2022-07-08",end:"2027-07-07",closed:false},
-{brand:"wellcafe",name:"제천중앙로점",addr:"충청북도 제천시 의림대로 187-5 (중앙로2가)",lat:37.1442816,lng:128.2133946,deposit:50000000.0,rent:4600000.0,start:"2022-08-01",end:"2025-07-31",closed:true},
-{brand:"wellcafe",name:"동해천곡점",addr:"강원특별자치도 동해시 천곡로 76",lat:37.5228947,lng:129.1132843,deposit:150000000.0,rent:5900000.0,start:"2022-10-01",end:"2025-09-30",closed:true},
-{brand:"wellcafe",name:"광주상무점",addr:"광주광역시 서구 상무자유로 170 (치평동)",lat:35.1512744,lng:126.8527189,deposit:200000000.0,rent:7500000.0,start:"2022-09-23",end:"2026-09-22",closed:false},
-{brand:"wellcafe",name:"인천강화점(소도시)\n (폐 240927)",addr:"인천 강화군 강화읍 강화대로 396-6",lat:37.7467016,lng:126.4866915,deposit:30000000.0,rent:2700000.0,start:"2022-09-28",end:"2024-09-27",closed:true},
-{brand:"wellcafe",name:"충남태안점(소도시)",addr:"충청남도 태안군 태안읍 중앙로 78",lat:36.7535259,lng:126.2974505,deposit:10000000.0,rent:2000000.0,start:"2022-10-01",end:"2024-09-30",closed:true},
-{brand:"wellcafe",name:"충남부여점(소도시)",addr:"충남 부여군 부여읍 성왕로 177-1",lat:36.2811457,lng:126.9081011,deposit:50000000.0,rent:1500000.0,start:"2022-10-01",end:"2024-09-30",closed:true},
-{brand:"wellcafe",name:"충남보령점(소도시)",addr:"충청남도 보령시 중앙로 67 (대천동)",lat:36.3501866,lng:126.5966362,deposit:50000000.0,rent:2700000.0,start:"2022-10-01",end:"2024-09-30",closed:true},
-{brand:"wellcafe",name:"경북문경점(소도시)",addr:"경상북도 문경시 당교로 245 (모전동)",lat:36.5864398,lng:128.1899464,deposit:30000000.0,rent:2200000.0,start:"2022-10-11",end:"2024-10-10",closed:true},
-{brand:"wellcafe",name:"경북칠곡점(소도시)",addr:"경상북도 칠곡군 왜관읍 중앙로 176",lat:35.9906528,lng:128.3996511,deposit:90000000.0,rent:3500000.0,start:"2022-10-17",end:"2024-10-16",closed:true},
-{brand:"wellcafe",name:"충남논산점(소도시)",addr:"충청남도 논산시 중앙로 255 (내동)",lat:36.1883422,lng:127.10355,deposit:100000000.0,rent:6000000.0,start:"2022-11-01",end:"2024-10-31",closed:true},
-{brand:"wellcafe",name:"전북남원점(소도시)",addr:"전북특별자치도 남원시 남문로 449 (하정동)",lat:35.4077334,lng:127.3813286,deposit:60000000.0,rent:3000000.0,start:"2022-11-21",end:"2024-11-20",closed:true},
-{brand:"wellcafe",name:"전북김제점(소도시)",addr:"전북특별자치도 김제시 동서로 259 (요촌동)",lat:35.8042247,lng:126.8952767,deposit:50000000.0,rent:2000000.0,start:"2022-11-28",end:"2024-11-27",closed:true},
-{brand:"wellcafe",name:"충남금산점(소도시)",addr:"충청남도 금산군 금산읍 인삼로 83",lat:36.1030204,lng:127.4909664,deposit:60000000.0,rent:2400000.0,start:"2022-11-21",end:"2024-11-20",closed:true},
-{brand:"wellcafe",name:"아산배방점",addr:"충청남도 아산시 배방읍 배방로 26",lat:36.7745421,lng:127.0539329,deposit:100000000.0,rent:7000000.0,start:"2022-11-14",end:"2026-11-13",closed:false},
-{brand:"celunic",name:"부평점",addr:"인천광역시 부평구 체육관로 40 (삼산동)",lat:37.5082386,lng:126.7361336,deposit:50000000.0,rent:2500000.0,start:"2024-01-01",end:"2026-12-31",closed:false},
-{brand:"celunic",name:"일산점",addr:"경기도 고양시 일산서구 중앙로 1456 (주엽동)",lat:37.6715516,lng:126.7589958,deposit:20000000.0,rent:2100000.0,start:"2023-12-12",end:"2026-12-31",closed:false},
-{brand:"celunic",name:"강릉점",addr:"강원특별자치도 강릉시 선수촌로63번길 14-6 (홍제동)",lat:37.7570591,lng:128.8688333,deposit:30000000.0,rent:1500000.0,start:"2024-07-01",end:"2027-06-30",closed:false},
-{brand:"celunic",name:"진주점",addr:"경상남도 진주시 동진로 148 (상대동)",lat:35.1793268,lng:128.1073702,deposit:30000000.0,rent:1000000.0,start:"2024-08-15",end:"2026-08-14",closed:true},
-{brand:"celunic",name:"강서점",addr:"서울특별시 강서구 강서로 43 (화곡동)",lat:37.5316218,lng:126.8465384,deposit:30000000.0,rent:2300000.0,start:"2024-09-10",end:"2026-09-09",closed:false},
-{brand:"celunic",name:"강북점",addr:"서울특별시 노원구 동일로 1547 (상계동)",lat:37.666557,lng:127.0569221,deposit:40000000.0,rent:2500000.0,start:"2024-10-01",end:"2026-09-30",closed:false},
-{brand:"celunic",name:"인천점",addr:"인천광역시 남동구 인하로 568 (구월동)",lat:37.4425029,lng:126.7097065,deposit:50000000.0,rent:2500000.0,start:"2024-11-20",end:"2026-11-19",closed:false},
-{brand:"celunic",name:"창원점",addr:"경상남도 창원시 성산구 용지로169번길 15 (용호동)",lat:35.2306365,lng:128.6806786,deposit:20000000.0,rent:900000.0,start:"2025-03-01",end:"2027-02-28",closed:false},
-{brand:"celunic",name:"원주점",addr:"강원특별자치도 원주시 능라동길 51 (무실동)",lat:37.3348461,lng:127.9301541,deposit:20000000.0,rent:1300000.0,start:"2025-02-15",end:"2027-02-14",closed:false},
-{brand:"celunic",name:"대구점",addr:"대구광역시 수성구 명덕로 404 (수성동2가)",lat:35.8542956,lng:128.6142307,deposit:30000000.0,rent:1400000.0,start:"2025-03-01",end:"2027-02-28",closed:false},
-{brand:"celunic",name:"수원점",addr:"경기도 수원시 팔달구 덕영대로 693 (화서동)",lat:37.2849191,lng:126.9901955,deposit:30000000.0,rent:1500000.0,start:"2025-06-01",end:"2027-05-31",closed:false},
-{brand:"celunic",name:"대전점",addr:"대전광역시 서구 문정로 70 (탄방동)",lat:36.3464385,lng:127.38701,deposit:30000000.0,rent:1200000.0,start:"2025-06-01",end:"2027-05-31",closed:false},
-{brand:"celunic",name:"하남점",addr:"경기도 하남시 미사강변대로226번길 15 (망월동)",lat:37.5701117,lng:127.1846958,deposit:40000000.0,rent:1800000.0,start:"2025-06-13",end:"2027-06-12",closed:false},
-{brand:"celunic",name:"광주점",addr:"광주광역시 북구 하서로 424 (용두동)",lat:35.2166235,lng:126.8737341,deposit:20000000.0,rent:1200000.0,start:"2025-06-16",end:"2027-06-15",closed:false},
-{brand:"celunic",name:"전주점",addr:"전북특별자치도 전주시 덕진구 사근1길 20 (송천동2가)",lat:35.8663532,lng:127.1291482,deposit:50000000.0,rent:1800000.0,start:"2025-06-17",end:"2027-06-16",closed:false},
-{brand:"celunic",name:"춘천점",addr:"강원특별자치도 춘천시 동내면 춘천순환로 58",lat:37.8550951,lng:127.7503639,deposit:20000000.0,rent:1800000.0,start:"2025-09-11",end:"2027-09-10",closed:false},
-{brand:"celunic",name:"양주점",addr:"경기도 양주시 고읍남로 1 (광사동)",lat:37.7956144,lng:127.0810076,deposit:20000000.0,rent:1200000.0,start:"2025-09-12",end:"2027-09-11",closed:false},
-{brand:"celunic",name:"시흥점",addr:"",lat:37.637498,lng:126.9191185,deposit:15000000.0,rent:1400000.0,start:"2025-09-18",end:"2027-09-18",closed:false},
-{brand:"naviel",name:"명일",addr:"서울특별시 강동구 명일동 326-7",lat:37.5497914,lng:127.1447595,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"금천시흥",addr:"서울특별시 금천구 시흥동 881-43",lat:37.4554733,lng:126.9012955,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"인천모래내",addr:"인천시 남동구 구월동 1268-4",lat:37.4529085,lng:126.7211912,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"안양관양",addr:"경기도 안양시 동안구 관양동 1406-19",lat:37.4043924,lng:126.9598564,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"하남",addr:"경기도 하남시 덕풍동 326-4",lat:37.5423346,lng:127.2035705,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"수유",addr:"서울특별시 강북구 수유동 177-15",lat:37.6412545,lng:127.0255047,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"원주중앙",addr:"강원도 원주시 중앙동 114-12",lat:37.3489863,lng:127.9504573,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"상무",addr:"광주광역시 서구 쌍촌동 1334-2",lat:35.1598612,lng:126.8591781,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"운남",addr:"광주광역시 광산구 월곡동 682-6",lat:35.2143232,lng:126.8374519,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"제주중앙",addr:"제주특별자치도 제주시 이도일동 1404-2",lat:33.5118134,lng:126.5243612,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"유성",addr:"대전광역시 유성구 봉명동 466-4",lat:36.3547943,lng:127.3372776,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"전주모래내",addr:"전라북도 전주시 덕진구 인후동2가 236-156",lat:35.8332805,lng:127.1449758,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"효자",addr:"전라북도 전주시 완산구 효자동1가 195-19",lat:35.8370595,lng:127.1045178,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"송천",addr:"전라북도 전주시 덕진구 송천동1가 474-62번지",lat:35.8596643,lng:127.120955,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"영등",addr:"전라북도 익산시 영등동 857-6",lat:35.9582832,lng:126.9779801,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"모현",addr:"전라북도 익산시 모현동1가 292-8",lat:35.964449699999996,lng:126.7021315,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"나운",addr:"전라북도 군산시 나운동 100-9",lat:35.9644497,lng:126.7021315,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"칠곡",addr:"대구광역시 북구 읍내동 1123-4",lat:35.9326598,lng:128.5500492,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"감삼",addr:"대구광역시 달서구 감삼동 62-8",lat:35.854027,lng:128.5463516,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"침산",addr:"대구광역시 북구 침산동 295-3",lat:35.890593,lng:128.5907959,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"지산",addr:"대구광역시 수성구 지산동 1277-19",lat:35.8237005,lng:128.6366882,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"시지",addr:"대구 수성구 신매동 573",lat:35.8388853,lng:128.7098005,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"아양교",addr:"대구광역시 동구 효목동 80-11",lat:35.886924,lng:128.639959,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"구미",addr:"경상북도 구미시 형곡동 147-1",lat:36.1128764,lng:128.334321,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"구미인동",addr:"경상북도 구미시 인의동 427-1",lat:36.1086738,lng:128.4257257,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"김천",addr:"경상북도 김천시 신음동 791-7",lat:36.1371496,lng:128.1167442,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"두호",addr:"경상북도 포항시 북구 두호동 1052-10",lat:36.059886,lng:129.3750405,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"김해내외동",addr:"경상남도 김해시 외동 1254-3",lat:35.2326532,lng:128.8659549,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"창원남양",addr:"경상남도 창원시 성산구 남양동 8",lat:35.2130745,lng:128.7009828,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"충무",addr:"부산광역시 중구 남포동5가 50-2",lat:35.0976266,lng:129.0292223,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"naviel",name:"양정",addr:"부산광역시 부산진구 양정동 370-22",lat:35.1730814,lng:129.0703273,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"장유 율하점",addr:"경남 김해시 율하3로 45",lat:35.1721801,lng:128.8142663,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"밀양 삼문점",addr:"경상남도 밀양시 중앙로 234-3",lat:35.4852805,lng:128.7597257,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"진주 신안점",addr:"경남 진주시 진양호로 294",lat:35.1793776,lng:128.0651094,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"진주 주약점",addr:"경상남도 진주시 주약동 156",lat:35.1763912,lng:128.0908598,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"분당 서현점",addr:"경기 성남시 분당구 중앙공원로39번길 7",lat:37.3814914,lng:127.1281291,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"분당 이매점",addr:"경기도 성남시 분당구 이매로 45",lat:37.3950185,lng:127.1258653,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"용인 구성점",addr:"경기 용인시 기흥구 구성로 93",lat:37.2945943,lng:127.119992,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"남양주 다산역점",addr:"경기 남양주시 다산중앙로146번길 12-14",lat:37.6252019,lng:127.1549316,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"남양주 진접점",addr:"경기도 남양주시 진접읍 장현로 77",lat:37.7177209,lng:127.1809495,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"서울 노원점",addr:"서울 노원구 동일로 1366",lat:37.6505564,lng:127.0619982,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"서울 서초점",addr:"서울 서초구 반포대로27길 23",lat:37.4897309,lng:127.0069604,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"서울 홍제점",addr:"서울특별시 서대문구 통일로39길 6",lat:37.5885108,lng:126.9438788,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"하남 미사점",addr:"경기 하남시 미사강변동로 73",lat:37.5615477,lng:127.1930158,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"강릉 교동점",addr:"강원 강릉시 정원로 54",lat:37.7624741,lng:128.8759246,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"속초 교동점",addr:"강원 속초시 미시령로3359번길 20",lat:38.2070669,lng:128.5745783,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"속초 조양점",addr:"강원 속초시 조양로 111",lat:38.1869201,lng:128.5883172,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"철원 와수점",addr:"강원도 철원군 서면 와수로 197",lat:38.2409676,lng:127.4401376,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"춘천 신사우점",addr:"강원 춘천시 사우4길 36",lat:37.9063999,lng:127.7282296,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"세종 보람점",addr:"세종특별자치시 호려울로 45",lat:36.4782273,lng:127.2900167,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"광주 진월점",addr:"광주광역시 남구 회서로 56-10",lat:35.1287318,lng:126.8968222,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"전주 에코시티점",addr:"전북 전주시 덕진구 세병남로 29",lat:35.8722561,lng:127.127289,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"전주 혁신도시점",addr:"전라북도 완주군 기지로 36",lat:35.8379897,lng:127.0560455,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"당진 터미널점",addr:"충남 당진시 원당로 77",lat:36.9079956,lng:126.6439938,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"홍성 법원점",addr:"충남 홍성군 홍성읍 법원로 6",lat:36.5999039,lng:126.6523525,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"아산 터미널점",addr:"충남 아산시 문화로 301-25",lat:36.7868777,lng:127.0188517,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"부산 온천점",addr:"부산 동래구 금강공원로20번길 3",lat:35.2190592,lng:129.0823072,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"양산 증산점",addr:"경남 양산시 물금읍 증산역로 149",lat:35.3098855,lng:129.0063585,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"울산 달동점",addr:"울산 남구 삼산로 162",lat:35.536523,lng:129.3251351,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"대전 관저점",addr:"대전 서구 구봉로147번길 68-12",lat:36.2992911,lng:127.338972,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"대전 전민점",addr:"대전광역시 유성구 전민로58번길 72",lat:36.3977368,lng:127.4043152,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"대전 태평점",addr:"대전 중구 계백로1565번길 14",lat:36.3182238,lng:127.3939739,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"충북 영동점",addr:"충북 영동군 영동읍 중앙로3길 6",lat:36.1745321,lng:127.7774358,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"고양 마두점",addr:"경기 고양시 일산동구 장항동 895",lat:37.6514171,lng:126.7775703,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"인천 하늘도시점",addr:"인천광역시 중구 하늘중앙로 193",lat:37.4903997,lng:126.5607172,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"김포 운양점",addr:"경기 김포시 김포한강1로 230",lat:37.653169,lng:126.6827688,deposit:null,rent:null,start:null,end:null,closed:false},
-{brand:"club",name:"부천 역곡점",addr:"경기도 부천시 원미구 부일로749번길 9",lat:37.486552,lng:126.8125003,deposit:null,rent:null,start:null,end:null,closed:false}
-];
+const SEED_COORDS = {
+"은평구 진관2로 15-34":[37.637498,126.9191185],
+"화성시 동탄솔빛로 67":[37.1948374,127.0742968],
+"유성구 은구비남로33번길 51":[36.3745649,127.3191383],
+"의정부시 청사로 45 (금오동)":[37.752244,127.0696035],
+"화성시 동탄대로5길 32":[37.1669984,127.1039327],
+"수영구 수영로 685":[35.1667586,129.1147667],
+"중구 시계탑거리 40":[35.5534759,129.3215241],
+"해운대구 양운로 92":[35.1712489,129.1750215],
+"광산구 첨단중앙로 110":[35.2151873,126.8432482],
+"달서구 구마로 89":[35.8377906,128.5375804],
+"양천구 오목로 345":[37.5248951,126.8758038],
+"강남구 압구정로 140":[37.524637,127.0239957],
+"중구 마장로 119":[37.568066,127.0232213],
+"해운대구 센텀남대로 50":[35.1681323,129.1312846],
+"서구 치평로 106":[35.1567443,126.8477803],
+"남구 돋질로 292":[35.5440045,129.336763],
+"수성구 달구벌대로 2381":[35.859376,128.6307058],
+"성산구 단정로 13":[35.2207034,128.6823212],
+"서초구 서초중앙로 251":[37.5038239,127.0105378],
+"분당구 동판교로177번길 25":[37.3972827,127.1135331],
+"영통구 센트럴타운로 85":[37.2906725,127.0505156],
+"강남구 선릉로 323":[37.5030426,127.041588],
+"연수구 신송로 153":[37.3973453,126.6491107],
+"동안구 시민대로 311":[37.3961042,126.9646743],
+"기장군 정관로 563":[35.3219294,129.1756493],
+"분당구 정자일로 234":[37.3711946,127.1062676],
+"마포구 양화로 45":[37.5509108,126.9137604],
+"일산동구 중앙로1275번길 60-30":[37.6604463,126.7688969],
+"부천 원미구 길주로 209":[37.5064378,126.8030795],
+"송파구 석촌호수로 172":[37.5065278,127.0960685],
+"평택시 비전2로 194":[37.0007626,127.1121191],
+"시흥시 은계번영길 7":[37.437098,126.8016168],
+"연제구 중앙대로 1125":[35.187993,129.080465],
+"달서구 한실로 75":[35.8072025,128.5351364],
+"제주시 연북로 30":[33.4816724,126.484579],
+"동작구 상도로 176":[37.5043438,126.9386023],
+"광명시 철산로 32":[37.4762305,126.8698103],
+"양산시 물금읍 청운로 349":[35.3274909,129.0157577],
+"경산시 대학로 30":[35.8338045,128.7298604],
+"강서구 명지국제8로 241":[35.0984663,128.9192126],
+"마산회원구 용마로 130":[35.2234392,128.5859205],
+"용산구 이촌로 352":[37.5469251,126.9406017],
+"북구 동천로 120":[35.942284,128.5609386],
+"광산구 신창로 64":[35.1909692,126.8374328],
+"완산구 홍산로 262":[35.8172111,127.1064481],
+"원주시 봉화로 35":[37.3477964,127.9284069],
+"진주시 진양호로 221":[35.17411,128.060251],
+"다정중앙로 46":[36.4944798,127.2493095],
+"상당구 상당로 49":[36.6329394,127.4892776],
+"강동구 고덕로 399":[37.5577148,127.1700554],
+"남구 문수로 377":[35.5347055,129.2948088],
+"강남구 삼성로 726":[37.5205322,127.0496679],
+"서대문구 신촌로 73":[37.5562823,126.9347223],
+"남구 봉선로 168":[35.1226673,126.9136401],
+"소사구 양지로 205":[37.4679525,126.8242762],
+"목포시 백년대로 320":[34.8045148,126.4226167],
+"수지구 수지로 76":[37.3095965,127.0769763],
+"은평구 통일로 830":[37.6177691,126.9227183],
+"여수시 신월로 96":[34.7493894,127.6790024],
+"위례광장로 136":[37.4764108,127.1420412],
+"수지구 용구대로 2793":[37.3348721,127.1083822],
+"경주 원효로 111":[35.8421219,129.2113714],
+"달구벌대로 2127":[35.8652186,128.5966325],
+"구미 옥계북로 8":[36.1384124,128.4182189],
+"사상구 사상로 215":[35.1524,128.9903],
+"동래구 중앙대로 1325":[35.2052554,129.0775087],
+"유성구 대학로 44":[36.357575,127.3433425],
+"불당25로 236":[36.821962,127.1101831],
+"강남구 학동로 215":[37.5148754,127.032599],
+"남동구 논고개로 73":[37.3982222,126.7265416],
+"김포시 걸포2로 83":[37.6324793,126.7017843],
+"부산진구 중앙대로 711":[35.1563138,129.0588515],
+"포항 북구 포스코대로 291":[36.0203636,129.3567256],
+"거제 거제중앙로 1868":[34.8854856,128.6250051],
+"하남시 미사강변대로 60":[37.5550868,127.1868765],
+"부평구 대정로 50":[37.4947236,126.7257114],
+"사하구 낙동남로 1403":[35.1065876,128.9652012],
+"계양구 계양문화로 119":[37.5418326,126.73786],
+"파주시 청암로17번길 53":[37.7281531,126.7352303],
+"강서구 공항대로 242":[37.5585277,126.8339919],
+"구리시 장자대로 76":[37.5872928,127.1389731],
+"영등포구 영등포로 210":[37.5195414,126.9045041],
+"팔달구 효원로 288":[37.2608241,127.0329984],
+"진해구 해원로 45":[35.1564188,128.696061],
+"권선구 금곡로 193":[37.2738644,126.9515921],
+"의창구 중동중앙로 47":[35.2566533,128.6250246],
+"남양주 순화궁로 343":[37.6573355,127.1256689],
+"처인구 백옥대로 1128":[37.2302189,127.2116229],
+"익산 선화로1길 20":[35.9514023,126.9384763],
+"안성 아양1로 73":[37.0082252,127.2584582],
+"광주(경기) 파발로59번길 26":[37.4129389,127.2606681],
+"현풍읍 테크노상업로 62":[35.6932055,128.4548737],
+"노원구 덕릉로 688":[37.6589447,127.0757142],
+"북구(울산) 화산로 115":[35.6023486,129.3651692],
+"서구(대전) 대덕대로 195":[36.3507511,127.3775923],
+"서귀포 일주동로8666번길 5":[33.2538366,126.5623485],
+"중구(대전) 중앙로 126":[36.3276499,127.4241236],
+"의정부 용민로 493":[37.7499921,127.1186041],
+"송파대로 201":[37.4969143,127.1121343],
+"김해 삼계중앙로 22":[35.2601443,128.8675486],
+"구로구 도림로 81":[37.4902931,126.892211],
+"흥덕구 강서로 107":[36.6249108,127.4281278],
+"동대문구 사가정로 80":[37.5752453,127.0549757],
+"김해 율하6로 52":[35.1717473,128.8246449],
+"군산 월명로 251":[35.9664794,126.7151958],
+"순천 연향중앙상가길 13":[34.9524871,127.5196815],
+"동구(대구) 아양로 71":[35.882915,128.6217462],
+"남양주 다산지금로 139":[37.6006831,127.1743448],
+"도봉구 도봉로 571":[37.6576878,127.0384102],
+"장안구 경수대로 914":[37.2971235,127.0226429],
+"북구(광주) 설죽로 319":[35.1882135,126.8985604],
+"홍북읍 청사로174번길 2":[36.659379,126.6789817],
+"이천 중리천로 58":[37.2797177,127.444094],
+"강릉 경강로 2102":[37.7550211,128.8969544],
+"충주 봉계1길 50":[36.9809245,127.915495],
+"포항 북구 장량로 160":[36.0814314,129.3979758],
+"동구(울산) 방어진순환도로 652":[35.499722,129.4297347],
+"양주 옥정로 200":[37.8194146,127.092139],
+"안산 단원구 중앙대로 929":[37.3171541,126.8399427],
+"미추홀구 숙골로88번길 12":[37.4700482,126.6651593],
+"만안구 병목안로 15":[37.3986126,126.9190837],
+"서산 중앙로 66":[36.784845,126.4654],
+"안동 경북대로 359":[36.5621034,128.7029974],
+"기흥구 흥덕중앙로 55":[37.2766244,127.0730752],
+"화성 동탄신리천로 411":[37.1826564,127.1243218],
+"김포 김포한강4로 123":[37.6445702,126.6673233],
+"서구(인천) 중봉대로 594":[37.5325427,126.6502786],
+"광명 양지로 17":[37.4187493,126.8826475],
+"마포구 월드컵북로 332":[37.5759168,126.895034],
+"남양주 경춘로 1309":[37.650549,127.2375709],
+"분당구 대왕판교로606번길 58":[37.3955218,127.113649],
+"김천 혁신3로 26":[36.1165295,128.1816727],
+"군포 엘에스로 143":[37.3727334,126.9447533],
+"통영 중앙로 311":[34.8581139,128.4282054],
+"춘천 김유정로 1884":[37.8542485,127.737132],
+"공주 한적1길 2":[36.4746231,127.1377575],
+"제천 의림대로 187":[37.1442816,128.2133946],
+"동해 천곡로 76":[37.5228947,129.1132843],
+"서구(광주) 상무자유로 170":[35.1512744,126.8527189],
+"강화읍 강화대로 396":[37.7467016,126.4866915],
+"태안읍 중앙로 78":[36.7535259,126.2974505],
+"부여읍 성왕로 177":[36.2811457,126.9081011],
+"보령 중앙로 67":[36.3501866,126.5966362],
+"문경 당교로 245":[36.5864398,128.1899464],
+"왜관읍 중앙로 176":[35.9906528,128.3996511],
+"논산 중앙로 255":[36.1883422,127.10355],
+"남원 남문로 449":[35.4077334,127.3813286],
+"김제 동서로 259":[35.8042247,126.8952767],
+"금산읍 인삼로 83":[36.1030204,127.4909664],
+"아산 배방읍 배방로 26":[36.7745421,127.0539329],
+"부평구 체육관로 40":[37.5082386,126.7361336],
+"일산서구 중앙로 1456":[37.6715516,126.7589958],
+"강릉 선수촌로63번길 14":[37.7570591,128.8688333],
+"진주 동진로 148":[35.1793268,128.1073702],
+"강서구(서울) 강서로 43":[37.5316218,126.8465384],
+"노원구 동일로 1547":[37.666557,127.0569221],
+"남동구 인하로 568":[37.4425029,126.7097065],
+"성산구 용지로169번길 15":[35.2306365,128.6806786],
+"원주 능라동길 51":[37.3348461,127.9301541],
+"수성구 명덕로 404":[35.8542956,128.6142307],
+"팔달구 덕영대로 693":[37.2849191,126.9901955],
+"서구(대전) 문정로 70":[36.3464385,127.38701],
+"하남 미사강변대로226번길 15":[37.5701117,127.1846958],
+"북구(광주) 하서로 424":[35.2166235,126.8737341],
+"덕진구 사근1길 20":[35.8663532,127.1291482],
+"동내면 춘천순환로 58":[37.8550951,127.7503639],
+"양주 고읍남로 1":[37.7956144,127.0810076],
+"시흥 배곧동 193":[37.3698242,126.7283415],
+"강동구 명일동 326-7":[37.5497914,127.1447595],
+"금천구 시흥동 881-43":[37.4554733,126.9012955],
+"남동구 구월동 1268-4":[37.4529085,126.7211912],
+"동안구 관양동 1406-19":[37.4043924,126.9598564],
+"하남 덕풍동 326-4":[37.5423346,127.2035705],
+"강북구 수유동 177-15":[37.6412545,127.0255047],
+"원주 중앙동 114-12":[37.3489863,127.9504573],
+"서구(광주) 쌍촌동 1334-2":[35.1598612,126.8591781],
+"광산구 월곡동 682-6":[35.2143232,126.8374519],
+"제주 이도일동 1404-2":[33.5118134,126.5243612],
+"유성구 봉명동 466-4":[36.3547943,127.3372776],
+"덕진구 인후동2가 236-156":[35.8332805,127.1449758],
+"완산구 효자동1가 195-19":[35.8370595,127.1045178],
+"덕진구 송천동1가 474-62":[35.8596643,127.120955],
+"익산 영등동 857-6":[35.9582832,126.9779801],
+"익산 모현동1가 292-8":[35.964449699999996,126.7021315],
+"군산 나운동 100-9":[35.9644497,126.7021315],
+"북구(대구) 읍내동 1123-4":[35.9326598,128.5500492],
+"달서구 감삼동 62-8":[35.854027,128.5463516],
+"북구(대구) 침산동 295-3":[35.890593,128.5907959],
+"수성구 지산동 1277-19":[35.8237005,128.6366882],
+"수성구 신매동 573":[35.8388853,128.7098005],
+"동구(대구) 효목동 80-11":[35.886924,128.639959],
+"구미 형곡동 147-1":[36.1128764,128.334321],
+"구미 인의동 427-1":[36.1086738,128.4257257],
+"김천 신음동 791-7":[36.1371496,128.1167442],
+"포항 북구 두호동 1052-10":[36.059886,129.3750405],
+"김해 외동 1254-3":[35.2326532,128.8659549],
+"성산구 남양동 8":[35.2130745,128.7009828],
+"중구(부산) 남포동5가 50-2":[35.0976266,129.0292223],
+"부산진구 양정동 370-22":[35.1730814,129.0703273],
+"김해 율하3로 45":[35.1721801,128.8142663],
+"밀양 중앙로 234-3":[35.4852805,128.7597257],
+"진주 진양호로 294":[35.1793776,128.0651094],
+"진주 주약동 156":[35.1763912,128.0908598],
+"분당구 중앙공원로39번길 7":[37.3814914,127.1281291],
+"분당구 이매로 45":[37.3950185,127.1258653],
+"기흥구 구성로 93":[37.2945943,127.119992],
+"남양주 다산중앙로146번길 12":[37.6252019,127.1549316],
+"진접읍 장현로 77":[37.7177209,127.1809495],
+"노원구 동일로 1366":[37.6505564,127.0619982],
+"서초구 반포대로27길 23":[37.4897309,127.0069604],
+"서대문구 통일로39길 6":[37.5885108,126.9438788],
+"하남 미사강변동로 73":[37.5615477,127.1930158],
+"강릉 정원로 54":[37.7624741,128.8759246],
+"속초 미시령로3359번길 20":[38.2070669,128.5745783],
+"속초 조양로 111":[38.1869201,128.5883172],
+"철원 서면 와수로 197":[38.2409676,127.4401376],
+"춘천 사우4길 36":[37.9063999,127.7282296],
+"세종 호려울로 45":[36.4782273,127.2900167],
+"남구(광주) 회서로 56-10":[35.1287318,126.8968222],
+"덕진구 세병남로 29":[35.8722561,127.127289],
+"완주군 기지로 36":[35.8379897,127.0560455],
+"당진 원당로 77":[36.9079956,126.6439938],
+"홍성읍 법원로 6":[36.5999039,126.6523525],
+"아산 문화로 301":[36.7868777,127.0188517],
+"동래구 금강공원로20번길 3":[35.2190592,129.0823072],
+"양산 물금읍 증산역로 149":[35.3098855,129.0063585],
+"남구(울산) 삼산로 162":[35.536523,129.3251351],
+"서구(대전) 구봉로147번길 68-12":[36.2992911,127.338972],
+"유성구 전민로58번길 72":[36.3977368,127.4043152],
+"중구(대전) 계백로1565번길 14":[36.3182238,127.3939739],
+"영동 영동읍 중앙로3길 6":[36.1745321,127.7774358],
+"일산동구 장항동 895":[37.6514171,126.7775703],
+"중구(인천) 하늘중앙로 193":[37.4903997,126.5607172],
+"김포 김포한강1로 230":[37.653169,126.6827688],
+"원미구 부일로749번길 9":[37.486552,126.8125003]
+};
 
 
+const KAKAO_REST_KEY = "1f13288c61776062e441a3f19e80fc2e";
+const CSV_URLS = {
+  "wellounge": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGP7TTgFrjdIMfN1k0z2XkqFJeNqKyk68gTGSV5Adhwv3lq9ZpExZhlEbNGLpQEIn0AdapdX7dig1N/pub?gid=0&single=true&output=csv",
+  "wellcafe": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGP7TTgFrjdIMfN1k0z2XkqFJeNqKyk68gTGSV5Adhwv3lq9ZpExZhlEbNGLpQEIn0AdapdX7dig1N/pub?gid=901816968&single=true&output=csv",
+  "celunic": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGP7TTgFrjdIMfN1k0z2XkqFJeNqKyk68gTGSV5Adhwv3lq9ZpExZhlEbNGLpQEIn0AdapdX7dig1N/pub?gid=2076090831&single=true&output=csv",
+  "naviel": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGP7TTgFrjdIMfN1k0z2XkqFJeNqKyk68gTGSV5Adhwv3lq9ZpExZhlEbNGLpQEIn0AdapdX7dig1N/pub?gid=2068561403&single=true&output=csv",
+  "club": "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGP7TTgFrjdIMfN1k0z2XkqFJeNqKyk68gTGSV5Adhwv3lq9ZpExZhlEbNGLpQEIn0AdapdX7dig1N/pub?gid=82996649&single=true&output=csv"
+};
+const TODAY = new Date("2026-07-23");
 const BRAND_COLOR = {wellounge:"#5b8fa8",wellcafe:"#c97b4a",celunic:"#7a9e73",naviel:"#b06a7a",club:"#8d78b0"};
 const BRAND_LABEL = {wellounge:"웰라운지",wellcafe:"웰카페",celunic:"셀루닉하우스",naviel:"나비엘",club:"클럽밸런스"};
 const CLOSED_COLOR = "#5a6068";
 
+let STORES2 = [];
+
+const ADMIN_WORDS = ["서울","경기도","경기","인천","부산","대구","광주","대전","울산","세종특별자치시","세종",
+  "강원특별자치도","강원도","강원","충청북도","충북","충청남도","충남","전북특별자치도","전북",
+  "전라북도","전라남도","전남","경상북도","경북","경상남도","경남","제주특별자치도","제주",
+  "특별시","광역시","특별자치도","특별자치시"];
+const UNIT_WORDS = ["시","군","구","읍","면","동","로","길","가","번지","번길"];
+function core(s){
+  if(!s) return '';
+  s = s.replace(/\s+/g,'');
+  s = s.replace(/[^0-9A-Za-z가-힣\-]/g,'');
+  ADMIN_WORDS.forEach(w=>{ s = s.split(w).join(''); });
+  UNIT_WORDS.forEach(w=>{ s = s.split(w).join(''); });
+  return s;
+}
+function findSeed(addr){
+  const ca = core(addr);
+  for(const key in SEED_COORDS){
+    const ck = core(key);
+    if(ck.length>=3 && (ca.includes(ck) || ck.includes(ca))) return SEED_COORDS[key];
+  }
+  return null;
+}
+
+const CACHE_KEY = 'ceragem_geo_cache_v1';
+let geoCache = {};
+try{ geoCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); }catch(e){ geoCache = {}; }
+function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(geoCache)); }catch(e){} }
+
+async function kakaoGeocode(addr){
+  if(!addr) return null;
+  try{
+    const res = await fetch('https://dapi.kakao.com/v2/local/search/address.json?query=' + encodeURIComponent(addr), {
+      headers: { 'Authorization': 'KakaoAK ' + KAKAO_REST_KEY }
+    });
+    if(res.ok){
+      const data = await res.json();
+      if(data.documents && data.documents.length){
+        return [parseFloat(data.documents[0].y), parseFloat(data.documents[0].x)];
+      }
+    }
+    const res2 = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?query=' + encodeURIComponent(addr), {
+      headers: { 'Authorization': 'KakaoAK ' + KAKAO_REST_KEY }
+    });
+    if(res2.ok){
+      const data2 = await res2.json();
+      if(data2.documents && data2.documents.length){
+        return [parseFloat(data2.documents[0].y), parseFloat(data2.documents[0].x)];
+      }
+    }
+  }catch(e){ console.warn('geocode fail', addr, e); }
+  return null;
+}
+
+async function resolveCoord(addr){
+  if(!addr) return [null, null];
+  const seed = findSeed(addr);
+  if(seed) return seed;
+  if(geoCache[addr]) return geoCache[addr];
+  const r = await kakaoGeocode(addr);
+  if(r){ geoCache[addr] = r; saveCache(); return r; }
+  return [null, null];
+}
+
+function parseNum(s){
+  if(s==null) return null;
+  s = String(s).replace(/,/g,'').trim();
+  if(s==='' || s==='-') return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+function isClosed(name, note){
+  const t = (name||'') + ' ' + (note||'');
+  return /폐|해지/.test(t);
+}
+
+function parseLeaseSheet(rows, brand){
+  const out = [];
+  for(let i=2;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r.length<3) continue;
+    const no = (r[1]||'').trim();
+    if(!no || no.includes('-')) continue;
+    const name = (r[2]||'').trim();
+    if(!name) continue;
+    const addrNew = (r[7]||'').trim();
+    const addrOld = (r[6]||'').trim();
+    const addr = addrNew || addrOld;
+    const note = (r[20]||'').trim();
+    out.push({
+      brand, name, addr,
+      deposit: parseNum(r[21]), rent: parseNum(r[22]),
+      start: (r[16]||'').trim() || null, end: (r[17]||'').trim() || null,
+      closed: isClosed(name, note)
+    });
+  }
+  return out;
+}
+function parseSimpleSheet(rows, brand, nameCol, addrCol){
+  const out = [];
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r) continue;
+    const name = (r[nameCol]||'').trim();
+    const addr = (r[addrCol]||'').trim();
+    if(!name) continue;
+    out.push({brand, name, addr, deposit:null, rent:null, start:null, end:null, closed:false});
+  }
+  return out;
+}
+
+function fetchCsv(url){
+  return new Promise((resolve,reject)=>{
+    Papa.parse(url + (url.includes('?')?'&':'?') + '_ts=' + Date.now(), {
+      download:true, skipEmptyLines:false,
+      complete: res => resolve(res.data),
+      error: err => reject(err)
+    });
+  });
+}
+
+async function loadAll(){
+  document.getElementById('loadingOverlay').classList.remove('hide');
+  const setProg = (pct, text) => { document.getElementById('loadingBarFill').style.width = pct+'%'; document.getElementById('loadingText').textContent = text; };
+  setProg(5, '구글시트 불러오는 중...');
+
+  let raw = [];
+  try{
+    const [wl, wc, cl, nv, cb] = await Promise.all([
+      fetchCsv(CSV_URLS.wellounge), fetchCsv(CSV_URLS.wellcafe), fetchCsv(CSV_URLS.celunic),
+      fetchCsv(CSV_URLS.naviel), fetchCsv(CSV_URLS.club)
+    ]);
+    raw = raw.concat(parseLeaseSheet(wl,'wellounge'));
+    raw = raw.concat(parseLeaseSheet(wc,'wellcafe'));
+    raw = raw.concat(parseLeaseSheet(cl,'celunic'));
+    raw = raw.concat(parseSimpleSheet(nv,'naviel', 2, 4));
+    raw = raw.concat(parseSimpleSheet(cb,'club', 2, 3));
+  }catch(e){
+    setProg(100, '시트 로딩 실패: ' + e.message);
+    console.error(e);
+    return;
+  }
+
+  setProg(25, '매장 좌표 확인 중... (0/' + raw.length + ')');
+  const results = [];
+  let done = 0;
+  for(const s of raw){
+    const [lat,lng] = await resolveCoord(s.addr);
+    results.push(Object.assign({}, s, {lat, lng}));
+    done++;
+    if(done % 5 === 0 || done===raw.length){
+      setProg(25 + Math.round(70*done/raw.length), `매장 좌표 확인 중... (${done}/${raw.length})`);
+    }
+  }
+  STORES2 = results;
+  STORES2.forEach((s,i)=>s._idx=i);
+  setProg(100, '완료');
+  document.getElementById('syncStatus').textContent = '마지막 동기화 ' + new Date().toLocaleTimeString('ko-KR') + ' · ' + STORES2.length + '개 매장';
+  setTimeout(()=>document.getElementById('loadingOverlay').classList.add('hide'), 300);
+  renderAll();
+}
+
 const fmtWon = n => {
-  if(n==null) return null;
+  if(n==null) return "-";
   if(n>=100000000) return (n/100000000).toFixed(n%100000000===0?0:1)+"억";
   if(n>=10000) return Math.round(n/10000).toLocaleString('ko-KR')+"만";
   return n.toLocaleString('ko-KR');
 };
-const fmtDate = d => d? d.slice(2).replace(/-/g,'.') : null;
-
-const map = L.map('map', {zoomControl:true, attributionControl:true}).setView([36.4, 127.7], 7);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
+function ddayOf(s){
+  if(s.closed || !s.end) return null;
+  const end = new Date(s.end);
+  if(isNaN(end)) return null;
+  return Math.round((end - TODAY) / 86400000);
+}
+function riskOf(s){
+  if(s.closed) return {level:'none', label:'폐점', color:CLOSED_COLOR};
+  const d = ddayOf(s);
+  if(d==null) return {level:'none', label:'-', color:'#666'};
+  if(d <= 60) return {level:'high', label: d<0 ? `${-d}일 경과` : `D-${d} 갱신임박`, color:'var(--red)'};
+  if(d <= 180) return {level:'mid', label:`D-${d} 주의`, color:'var(--yellow)'};
+  return {level:'low', label:`D-${d} 안정`, color:'var(--green)'};
+}
 
 let activeBrands = new Set(Object.keys(BRAND_COLOR));
+let tableBrandFilter = new Set(Object.keys(BRAND_COLOR));
 let showClosed = true;
 let radius = 1000;
 let showRadius = true;
-let selectedIdx = null;
+let sortKey = 'end', sortDir = 1;
+let map, markers=[], circles=[];
 
+function renderAll(){
+  renderKpis(); renderAlerts(); setupBrandChips(); renderTable();
+  setupMap(); renderList2();
+}
+
+function renderKpis(){
+  const kpirow = document.getElementById('kpirow'); kpirow.innerHTML='';
+  const total = STORES2.length;
+  const active = STORES2.filter(s=>!s.closed).length;
+  const closedCnt = STORES2.filter(s=>s.closed).length;
+  const soon = STORES2.filter(s=>!s.closed && ddayOf(s)!=null && ddayOf(s)<=60).length;
+  const depositSum = STORES2.reduce((a,s)=>a+(s.deposit||0),0);
+  const rentSum = STORES2.reduce((a,s)=>a+(s.rent||0),0);
+  [
+   {n: total, l:'전체 매장', warn:false},
+   {n: active, l:'영업중', warn:false},
+   {n: closedCnt, l:'폐점', warn:false},
+   {n: soon, l:'60일내 갱신임박', warn:true},
+   {n: fmtWon(depositSum)+'원', l:'보증금 합계', warn:false},
+   {n: fmtWon(rentSum)+'원', l:'월임차료 합계', warn:false},
+  ].forEach(k=>{
+    const d = document.createElement('div');
+    d.className = 'kpi' + (k.warn && k.n>0 ? ' warn':'');
+    d.innerHTML = `<div class="n">${k.n}</div><div class="l">${k.l}</div>`;
+    kpirow.appendChild(d);
+  });
+}
+
+function renderAlerts(){
+  const alertsList = document.getElementById('alertsList'); alertsList.innerHTML='';
+  const withDday = STORES2.filter(s=>!s.closed && ddayOf(s)!=null).sort((a,b)=>ddayOf(a)-ddayOf(b)).slice(0,12);
+  withDday.forEach(s=>{
+    const r = riskOf(s);
+    const row = document.createElement('div'); row.className='alertRow';
+    row.innerHTML = `<div class="light" style="background:${r.color}"></div>
+      <div class="an">${s.name}</div><div class="aaddr">${s.addr}</div>
+      <div class="adday" style="color:${r.color}">${r.label}</div>`;
+    row.addEventListener('click', ()=>openDrawer(s._idx));
+    alertsList.appendChild(row);
+  });
+}
+
+function setupBrandChips(){
+  const bf2 = document.getElementById('brandFilters2'); bf2.innerHTML='';
+  Object.keys(BRAND_COLOR).forEach(b=>{
+    const chip = document.createElement('div');
+    chip.className='chip' + (tableBrandFilter.has(b)?' active':'');
+    chip.style.background = tableBrandFilter.has(b)?BRAND_COLOR[b]:'transparent';
+    chip.style.color = tableBrandFilter.has(b)?'#12161a':BRAND_COLOR[b];
+    chip.style.borderColor=BRAND_COLOR[b];
+    chip.textContent = BRAND_LABEL[b];
+    chip.addEventListener('click', ()=>{
+      if(tableBrandFilter.has(b)){tableBrandFilter.delete(b);} else {tableBrandFilter.add(b);}
+      setupBrandChips(); renderTable();
+    });
+    bf2.appendChild(chip);
+  });
+
+  const filtersEl = document.getElementById('brandFilters'); filtersEl.innerHTML='';
+  Object.keys(BRAND_COLOR).forEach(brand => {
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (activeBrands.has(brand)?' active':'');
+    chip.style.background = activeBrands.has(brand)?BRAND_COLOR[brand]:'transparent';
+    chip.style.color = activeBrands.has(brand)?'#12161a':BRAND_COLOR[brand];
+    chip.style.borderColor = BRAND_COLOR[brand];
+    chip.textContent = BRAND_LABEL[brand];
+    chip.addEventListener('click', () => {
+      if(activeBrands.has(brand)){ activeBrands.delete(brand); } else { activeBrands.add(brand); }
+      setupBrandChips(); renderList2(); refreshMarkers();
+    });
+    filtersEl.appendChild(chip);
+  });
+}
+
+document.getElementById('tsearch').addEventListener('input', renderTable);
+document.querySelectorAll('thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(sortKey===k) sortDir*=-1; else {sortKey=k; sortDir=1;}
+    renderTable();
+  });
+});
+
+function renderTable(){
+  const q = document.getElementById('tsearch').value.trim().toLowerCase();
+  let rows = STORES2.filter(s=>tableBrandFilter.has(s.brand));
+  if(q) rows = rows.filter(s=>s.name.toLowerCase().includes(q)||(s.addr||'').toLowerCase().includes(q));
+  rows = rows.slice().sort((a,b)=>{
+    let av,bv;
+    if(sortKey==='dday'){av=ddayOf(a); bv=ddayOf(b); av=av==null?99999:av; bv=bv==null?99999:bv;}
+    else if(sortKey==='risk'){const order={high:0,mid:1,low:2,none:3}; av=order[riskOf(a).level]; bv=order[riskOf(b).level];}
+    else {av=a[sortKey]; bv=b[sortKey]; if(typeof av==='string') av=av.toLowerCase(); if(typeof bv==='string') bv=bv.toLowerCase();}
+    if(av==null) av=-Infinity; if(bv==null) bv=-Infinity;
+    return av>bv ? sortDir : av<bv ? -sortDir : 0;
+  });
+  const tbody = document.getElementById('tbody'); tbody.innerHTML='';
+  rows.forEach(s=>{
+    const r = riskOf(s); const dd = ddayOf(s);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="brandtag" style="background:${BRAND_COLOR[s.brand]}">${BRAND_LABEL[s.brand]}</span></td>
+      <td>${s.name}${s.closed?'<span class="closedtag">폐점</span>':''}</td>
+      <td style="color:var(--muted);font-size:11px;">${s.addr||'-'}</td>
+      <td class="num">${s.deposit!=null?fmtWon(s.deposit)+'원':'-'}</td>
+      <td class="num">${s.rent!=null?fmtWon(s.rent)+'원':'-'}</td>
+      <td class="num">${s.end||'-'}</td>
+      <td class="num" style="color:${r.color}">${dd!=null?(dd<0?dd:'D-'+dd):'-'}</td>
+      <td><span class="risklight"><span class="light" style="background:${r.color};display:inline-block;"></span>${r.label}</span></td>`;
+    tr.addEventListener('click', ()=>openDrawer(s._idx));
+    tbody.appendChild(tr);
+  });
+}
+
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+function openDrawer(idx){
+  const s = STORES2[idx]; const r = riskOf(s);
+  document.getElementById('dEyebrow').textContent = BRAND_LABEL[s.brand] + (s.closed ? ' · 폐점' : '');
+  document.getElementById('dName').textContent = s.name;
+  document.getElementById('dAddr').textContent = s.addr || '주소 미기재';
+  const hasLease = s.deposit != null;
+  document.getElementById('dLeaseSec').style.display = hasLease ? 'block' : 'none';
+  if(hasLease){
+    document.getElementById('dDeposit').textContent = fmtWon(s.deposit)+'원';
+    document.getElementById('dRent').textContent = fmtWon(s.rent)+'원';
+    document.getElementById('dStart').textContent = s.start || '-';
+    document.getElementById('dEnd').textContent = s.end || '-';
+  }
+  document.getElementById('dRisk').innerHTML = `<span class="light" style="background:${r.color};display:inline-block;"></span><span style="color:${r.color}">${r.label}</span>`;
+  const hist = document.getElementById('dHistory'); hist.innerHTML='';
+  if(hasLease){
+    const item = document.createElement('div'); item.className='histitem';
+    item.innerHTML = `<span>현재 계약 (${s.start} ~ ${s.end})</span><span style="color:var(--muted)">${s.closed?'폐점':'진행중'}</span>`;
+    hist.appendChild(item);
+  } else {
+    hist.innerHTML = '<div style="font-size:12px;color:var(--muted)">등록된 임차조건 데이터 없음</div>';
+  }
+  overlay.classList.add('show'); drawer.classList.add('show');
+}
+overlay.addEventListener('click', closeDrawer);
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+function closeDrawer(){ overlay.classList.remove('show'); drawer.classList.remove('show'); }
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.view).classList.add('active');
+    if(tab.dataset.view==='mapView' && map){ setTimeout(()=>map.invalidateSize(),50); }
+  });
+});
+
+function setupMap(){
+  if(!map){
+    map = L.map('map', {zoomControl:true, attributionControl:true}).setView([36.4, 127.7], 7);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+    }).addTo(map);
+  }
+  markers.forEach(m=>{ if(m) map.removeLayer(m); });
+  circles.forEach(c=>{ if(c) map.removeLayer(c); });
+  markers = []; circles = [];
+  STORES2.forEach((s, idx) => {
+    if(s.lat==null){ markers.push(null); circles.push(null); return; }
+    const marker = L.marker([s.lat, s.lng], {icon: makeIcon(s, false)}).addTo(map);
+    marker.bindPopup(popupHtml(s));
+    marker.on('click', () => selectRow(idx));
+    markers.push(marker);
+    const c = markerColor(s);
+    const circle = L.circle([s.lat, s.lng], {radius: radius, color: c, weight:1, fillColor: c, fillOpacity:0.05, opacity:0.4}).addTo(map);
+    circles.push(circle);
+  });
+}
 function markerColor(s){ return s.closed ? CLOSED_COLOR : BRAND_COLOR[s.brand]; }
-
 function makeIcon(s, dim){
   const color = markerColor(s);
   const shape = s.closed
-    ? `<div style="width:18px;height:18px;border-radius:3px;background:${color};border:2px solid #8a8f96;display:flex;align-items:center;justify-content:center;opacity:${dim?0.3:0.9};transform:rotate(45deg);"><span style="transform:rotate(-45deg);color:#fff;font-size:11px;font-weight:700;line-height:1;">&times;</span></div>`
+    ? `<div style="width:18px;height:18px;border-radius:3px;background:${color};border:2px solid #8a8f96;display:flex;align-items:center;justify-content:center;opacity:${dim?0.3:0.9};transform:rotate(45deg);"><span style="transform:rotate(-45deg);color:#fff;font-size:11px;font-weight:700;">&times;</span></div>`
     : `<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:${color};transform:rotate(-45deg);box-shadow:0 0 0 2px rgba(0,0,0,.4);opacity:${dim?0.3:1};"></div>`;
   return L.divIcon({className:'', html:shape, iconSize:[20,20], iconAnchor:[10,20], popupAnchor:[0,-18]});
 }
-
 function popupHtml(s){
   const hasLease = s.deposit != null;
   return `<div class="pp-eyebrow">${BRAND_LABEL[s.brand]}${s.closed?' · 폐점':''}</div>
@@ -390,99 +849,38 @@ function popupHtml(s){
     ${hasLease ? `<div class="pp-grid">
       <div><div class="k">보증금</div><div class="v">${fmtWon(s.deposit)}원</div></div>
       <div><div class="k">월 임차료</div><div class="v">${fmtWon(s.rent)}원</div></div>
-    </div>
-    <div class="pp-period">계약기간 &nbsp;${fmtDate(s.start)} ~ ${fmtDate(s.end)}</div>` : ''}
-    ${s.closed ? '<div class="pp-closed">폐점 매장</div>' : ''}`;
+    </div><div class="pp-period">계약기간 ${s.start} ~ ${s.end}</div>` : ''}`;
 }
+function passesFilter(s){ if(!activeBrands.has(s.brand)) return false; if(s.closed && !showClosed) return false; return true; }
+function refreshRadius(){ circles.forEach((c,i)=>{ if(!c) return; c.setRadius(radius); const on=passesFilter(STORES2[i])&&showRadius; c.setStyle({opacity:on?0.4:0, fillOpacity:on?0.05:0}); }); }
+function refreshMarkers(){ STORES2.forEach((s,idx)=>{ if(!markers[idx]) return; markers[idx].setIcon(makeIcon(s, !passesFilter(s))); }); refreshRadius(); }
 
-const markers = []; const circles = [];
-STORES2.forEach((s, idx) => {
-  if(s.lat==null){ markers.push(null); circles.push(null); return; }
-  const marker = L.marker([s.lat, s.lng], {icon: makeIcon(s, false)}).addTo(map);
-  marker.bindPopup(popupHtml(s));
-  marker.on('click', () => selectRow(idx));
-  markers.push(marker);
-  const c = markerColor(s);
-  const circle = L.circle([s.lat, s.lng], {radius: radius, color: c, weight:1, fillColor: c, fillOpacity:0.05, opacity:0.4}).addTo(map);
-  circles.push(circle);
-});
-
-function passesFilter(s){
-  if(!activeBrands.has(s.brand)) return false;
-  if(s.closed && !showClosed) return false;
-  return true;
-}
-
-function refreshRadius(){
-  circles.forEach((c,i) => { if(!c) return; c.setRadius(radius);
-    const on = passesFilter(STORES2[i]) && showRadius;
-    c.setStyle({opacity: on?0.4:0, fillOpacity: on?0.05:0}); });
-}
-
-function refreshMarkers(){
-  STORES2.forEach((s,idx) => {
-    if(!markers[idx]) return;
-    const dim = !passesFilter(s);
-    markers[idx].setIcon(makeIcon(s, dim));
-  });
-  refreshRadius();
-}
-
-const filtersEl = document.getElementById('brandFilters');
-Object.keys(BRAND_COLOR).forEach(brand => {
-  const chip = document.createElement('div');
-  chip.className = 'chip active';
-  chip.style.background = BRAND_COLOR[brand];
-  chip.style.color = '#12161a';
-  chip.style.borderColor = BRAND_COLOR[brand];
-  chip.textContent = BRAND_LABEL[brand];
-  chip.addEventListener('click', () => {
-    if(activeBrands.has(brand)){ activeBrands.delete(brand); chip.classList.remove('active'); chip.style.background='transparent'; chip.style.color=BRAND_COLOR[brand]; }
-    else{ activeBrands.add(brand); chip.classList.add('active'); chip.style.background=BRAND_COLOR[brand]; chip.style.color='#12161a'; }
-    renderList(); refreshMarkers();
-  });
-  filtersEl.appendChild(chip);
-});
-
-const listEl = document.getElementById('list');
-function renderList(){
-  const q = document.getElementById('search').value.trim().toLowerCase();
-  listEl.innerHTML = '';
-  let shown=0;
+function renderList2(){
+  const listEl2 = document.getElementById('list2');
+  const q = document.getElementById('search2').value.trim().toLowerCase();
+  listEl2.innerHTML='';
   STORES2.forEach((s, idx) => {
     if(!passesFilter(s)) return;
     if(q && !(s.name.toLowerCase().includes(q) || (s.addr||'').toLowerCase().includes(q))) return;
-    shown++;
-    const row = document.createElement('div');
-    row.className = 'row' + (selectedIdx===idx?' selected':'');
+    const row = document.createElement('div'); row.className='row';
     row.innerHTML = `<div class="dot" style="background:${markerColor(s)}"></div>
-      <div class="rmain">
-        <div class="name${s.closed?' closedname':''}">${s.name}${s.closed?'<span class="badge2">폐점</span>':''}</div>
-        <div class="addr">${s.addr||'주소 미기재'}</div>
-        ${s.deposit!=null ? `<div class="meta"><span><b>${fmtWon(s.deposit)}</b>원</span><span>월 <b>${fmtWon(s.rent)}</b>원</span><span>${fmtDate(s.start)}~${fmtDate(s.end)}</span></div>` : ''}
-      </div>`;
+      <div class="rmain"><div class="name${s.closed?' closedname':''}">${s.name}</div><div class="addr">${s.addr||'주소 미기재'}</div></div>`;
     row.addEventListener('click', () => selectRow(idx));
-    listEl.appendChild(row);
+    listEl2.appendChild(row);
   });
-  document.getElementById('stat-count').textContent = shown;
 }
-
 function selectRow(idx){
-  selectedIdx = idx; renderList();
   const s = STORES2[idx];
   if(s.lat!=null){ map.flyTo([s.lat, s.lng], 13, {duration:0.6}); markers[idx].openPopup(); }
 }
-
-document.getElementById('search').addEventListener('input', renderList);
-document.getElementById('closedToggle').addEventListener('change', e => { showClosed = e.target.checked; renderList(); refreshMarkers(); });
+document.getElementById('search2').addEventListener('input', renderList2);
+document.getElementById('closedToggle').addEventListener('change', e=>{ showClosed=e.target.checked; renderList2(); refreshMarkers(); });
 const slider = document.getElementById('radiusSlider');
-const radiusVal = document.getElementById('radiusVal');
-slider.addEventListener('input', () => { radius = parseInt(slider.value); radiusVal.textContent = (radius/1000).toFixed(1)+"km"; refreshRadius(); });
-document.getElementById('radiusToggle').addEventListener('change', e => { showRadius = e.target.checked; refreshRadius(); });
+slider.addEventListener('input', ()=>{ radius=parseInt(slider.value); document.getElementById('radiusVal').textContent=(radius/1000).toFixed(1)+'km'; refreshRadius(); });
+document.getElementById('radiusToggle').addEventListener('change', e=>{ showRadius=e.target.checked; refreshRadius(); });
+document.getElementById('refreshBtn').addEventListener('click', loadAll);
 
-document.getElementById('stat-active').textContent = STORES2.filter(s=>!s.closed).length;
-document.getElementById('stat-closed').textContent = STORES2.filter(s=>s.closed).length;
-renderList();
+loadAll();
 </script>
 </body>
 </html>
