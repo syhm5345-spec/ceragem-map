@@ -42,6 +42,11 @@
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px;}
   .panel h2{font-size:13px;margin:0 0 12px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;}
   .panel h2 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;}
+  .panel h2.collapsible{cursor:pointer;user-select:none;justify-content:flex-start;}
+  .panel h2.collapsible .chev{margin-left:auto;color:var(--muted);font-size:11px;transition:transform .15s;}
+  .panel h2.collapsible.collapsed .chev{transform:rotate(-90deg);}
+  .panel > div[id$="Body"]{overflow:hidden;}
+  .panel > div[id$="Body"].collapsed{display:none;}
   .panel .note{font-size:11px;color:var(--muted);margin:-6px 0 12px;}
 
   #alertsList{display:flex;flex-direction:column;gap:0;}
@@ -152,16 +157,12 @@
     <div id="dashboardView" class="view active">
       <div class="kpirow" id="kpirow"></div>
       <div class="panel">
-        <h2><span class="eyebrow">Alerts</span> 갱신 임박 · 리스크 알림</h2>
-        <div id="alertsList"></div>
+        <h2 class="collapsible" data-target="alertsBody"><span class="eyebrow">Alerts</span> 갱신 임박 · 리스크 알림 <span class="chev">▾</span></h2>
+        <div id="alertsBody"><div id="alertsList"></div></div>
       </div>
       <div class="panel">
-        <h2><span class="eyebrow">Closed</span> 폐점 매장 (자동 인식)</h2>
-        <div class="note">매장명·비고에 "폐" 또는 "해지" 문구가 있는 경우만 자동으로 분류돼요. 취소선만 되어 있고 문구가 없는 매장은 여기 안 잡히니, 폐점 매장은 시트에서 매장명 앞에 "폐)" 같은 표시를 남겨주세요.</div>
-        <div id="closedList" style="display:flex;flex-direction:column;"></div>
-      </div>
-      <div class="panel">
-        <h2><span class="eyebrow">Contracts</span> 전체 계약 현황</h2>
+        <h2 class="collapsible" data-target="contractsBody"><span class="eyebrow">Contracts</span> 전체 계약 현황 <span class="chev">▾</span></h2>
+        <div id="contractsBody">
         <div class="note">폐점 여부는 매장명/비고에 "폐" 문구가 있는 경우만 자동 인식돼요. 시트에 취소선만 표시된 폐점 매장은 CSV로는 인식이 안 되니, 확실히 반영하려면 매장명 앞에 "폐)" 같은 표시를 남겨주세요.</div>
         <div class="toolbar">
           <input type="text" id="tsearch" placeholder="매장명 · 주소 검색">
@@ -175,6 +176,14 @@
           </tr></thead>
           <tbody id="tbody"></tbody>
         </table>
+        </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="collapsible" data-target="closedBody"><span class="eyebrow">Closed</span> 폐점 매장 (자동 인식) <span class="chev">▾</span></h2>
+        <div id="closedBody">
+        <div class="note">매장명·비고에 "폐" 또는 "해지" 문구가 있는 경우만 자동으로 분류돼요. 취소선만 되어 있고 문구가 없는 매장은 여기 안 잡히니, 폐점 매장은 시트에서 매장명 앞에 "폐)" 같은 표시를 남겨주세요.</div>
+        <div id="closedList" style="display:flex;flex-direction:column;"></div>
         </div>
       </div>
     </div>
@@ -910,6 +919,13 @@ const slider = document.getElementById('radiusSlider');
 slider.addEventListener('input', ()=>{ radius=parseInt(slider.value); document.getElementById('radiusVal').textContent=(radius/1000).toFixed(1)+'km'; refreshRadius(); });
 document.getElementById('radiusToggle').addEventListener('change', e=>{ showRadius=e.target.checked; refreshRadius(); });
 document.getElementById('refreshBtn').addEventListener('click', loadAll);
+document.querySelectorAll('h2.collapsible').forEach(h=>{
+  h.addEventListener('click', ()=>{
+    const body = document.getElementById(h.dataset.target);
+    body.classList.toggle('collapsed');
+    h.classList.toggle('collapsed');
+  });
+});
 
 loadAll();
 </script>
